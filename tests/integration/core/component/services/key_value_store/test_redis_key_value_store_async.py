@@ -29,7 +29,7 @@ pytest.importorskip("redis")
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.key_value_store.drivers.redis import (
     RedisKeyValueStoreAction,
-    RedisKeyValueStoreService,
+    RedisKeyValueStoreDriver,
 )
 from mindor.dsl.schema.action import (
     RedisKeyValueDeleteActionConfig,
@@ -212,7 +212,7 @@ class TestRedisThreadAffinity:
 
 class TestRedisServiceSignature:
     def test_service_run_has_no_loop_kwarg(self):
-        signature = inspect.signature(RedisKeyValueStoreService._run)
+        signature = inspect.signature(RedisKeyValueStoreDriver._run)
         param_names = list(signature.parameters.keys())
         assert "loop" not in param_names
         assert param_names == ["self", "action", "context"]

@@ -36,7 +36,7 @@ def context():
 
 
 async def _connect(path: str) -> aiosqlite.Connection:
-    """Mirror SQLiteSearchEngineService: open a connection with row_factory and ensure parent dir."""
+    """Mirror SQLiteSearchEngineDriver: open a connection with row_factory and ensure parent dir."""
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
@@ -46,7 +46,7 @@ async def _connect(path: str) -> aiosqlite.Connection:
 
 
 async def _run_action(action_config, path: str, context):
-    """Open a SQLite connection, dispatch, and close — mirrors SQLiteSearchEngineService._run.
+    """Open a SQLite connection, dispatch, and close — mirrors SQLiteSearchEngineDriver._run.
 
     Mirrors the production check that non-INDEX methods must run against an existing DB.
     """

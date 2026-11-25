@@ -7,20 +7,20 @@ from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilt
 from mindor.core.component.services.vector_store.base import VectorStoreDriverRegistry
 from mindor.core.component.services.vector_store.vector_store import VectorStoreComponent
 from mindor.core.component.services.vector_store.drivers.pinecone import (
-    PineconeVectorStoreService,
+    PineconeVectorStoreDriver,
     PineconeVectorStoreAction,
     PineconeFilterBuilder,
 )
 
 
 def test_pinecone_driver_registration():
-    """Verify PineconeVectorStoreService is registered in VectorStoreDriverRegistry."""
+    """Verify PineconeVectorStoreDriver is registered in VectorStoreDriverRegistry."""
     assert VectorStoreDriverType.PINECONE in VectorStoreDriverRegistry
-    assert VectorStoreDriverRegistry[VectorStoreDriverType.PINECONE] is PineconeVectorStoreService
+    assert VectorStoreDriverRegistry[VectorStoreDriverType.PINECONE] is PineconeVectorStoreDriver
 
 
 def test_vector_store_component_loads_pinecone():
-    """Verify VectorStoreComponent creates PineconeVectorStoreService driver successfully."""
+    """Verify VectorStoreComponent creates PineconeVectorStoreDriver driver successfully."""
     config = PineconeVectorStoreComponentConfig(
         type=ComponentType.VECTOR_STORE,
         driver=VectorStoreDriverType.PINECONE,
@@ -29,7 +29,7 @@ def test_vector_store_component_loads_pinecone():
     global_configs = MagicMock()
     comp = VectorStoreComponent(id="pinecone_comp", config=config, global_configs=global_configs, daemon=False)
 
-    assert isinstance(comp.driver, PineconeVectorStoreService)
+    assert isinstance(comp.driver, PineconeVectorStoreDriver)
 
 
 def test_pinecone_filter_builder():

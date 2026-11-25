@@ -24,7 +24,7 @@ from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.video_converter.base import VideoConverterDriver
 from mindor.core.component.services.video_converter.drivers.ffmpeg import (
     FFmpegVideoConverterAction,
-    FFmpegVideoConverterService,
+    FFmpegVideoConverterDriver,
 )
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.file import FileStreamResource
@@ -173,12 +173,12 @@ class TestFFmpegVideoConverterAsync:
     async def test_service_run_signature_has_no_loop_kwarg(self, sample_mp4_path):
         """After the refactor, `Service._run` takes (action, context) only — no `loop`."""
         # Signature inspection.
-        sig = inspect.signature(FFmpegVideoConverterService._run)
+        sig = inspect.signature(FFmpegVideoConverterDriver._run)
         assert list(sig.parameters.keys()) == ["self", "action", "context"], (
             f"Unexpected _run signature: {sig}"
         )
         # Positive-run call: no TypeError should surface.
-        service = FFmpegVideoConverterService.__new__(FFmpegVideoConverterService)
+        service = FFmpegVideoConverterDriver.__new__(FFmpegVideoConverterDriver)
         VideoConverterDriver.__init__(service, "vc", MagicMock(), False)
 
         ctx = _make_context(sample_mp4_path)

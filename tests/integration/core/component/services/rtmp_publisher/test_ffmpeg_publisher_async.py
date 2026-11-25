@@ -27,7 +27,7 @@ from mindor.core.component.services.rtmp_publisher.base import RtmpPublisherDriv
 from mindor.core.component.services.rtmp_publisher.drivers.ffmpeg import (
     FFmpegRtmpPublisher,
     FFmpegRtmpPublisherAction,
-    FFmpegRtmpPublisherService,
+    FFmpegRtmpPublisherDriver,
 )
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
@@ -145,13 +145,13 @@ class TestFFmpegRtmpPublisherAsync:
     @pytest.mark.anyio
     async def test_service_run_signature_has_no_loop_kwarg(self, sample_mp4_path, tmp_path):
         """After the refactor, `Service._run` takes (action, context) only — no `loop`."""
-        sig = inspect.signature(FFmpegRtmpPublisherService._run)
+        sig = inspect.signature(FFmpegRtmpPublisherDriver._run)
         assert list(sig.parameters.keys()) == ["self", "action", "context"], (
             f"Unexpected _run signature: {sig}"
         )
 
         # Positive-run: dispatch through the service with a file-URL target.
-        service = FFmpegRtmpPublisherService.__new__(FFmpegRtmpPublisherService)
+        service = FFmpegRtmpPublisherDriver.__new__(FFmpegRtmpPublisherDriver)
         RtmpPublisherDriver.__init__(service, "rtmp", MagicMock(), False)
 
         out = tmp_path / "out.flv"

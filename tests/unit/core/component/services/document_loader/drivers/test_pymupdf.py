@@ -7,20 +7,20 @@ from mindor.dsl.schema.action.impl.document_loader.impl.pymupdf import PymupdfDo
 from mindor.core.component.services.document_loader.base import DocumentLoaderDriverRegistry
 from mindor.core.component.services.document_loader.document_loader import DocumentLoaderComponent
 from mindor.core.component.services.document_loader.drivers.pymupdf import (
-    PymupdfDocumentLoaderService,
+    PymupdfDocumentLoaderDriver,
     PymupdfDocumentLoaderAction,
 )
 
 
 
 def test_pymupdf_driver_registration():
-    """Verify PymupdfDocumentLoaderService is registered in DocumentLoaderDriverRegistry."""
+    """Verify PymupdfDocumentLoaderDriver is registered in DocumentLoaderDriverRegistry."""
     assert DocumentLoaderDriverType.PYMUPDF in DocumentLoaderDriverRegistry
-    assert DocumentLoaderDriverRegistry[DocumentLoaderDriverType.PYMUPDF] is PymupdfDocumentLoaderService
+    assert DocumentLoaderDriverRegistry[DocumentLoaderDriverType.PYMUPDF] is PymupdfDocumentLoaderDriver
 
 
 def test_document_loader_component_loads_pymupdf():
-    """Verify DocumentLoaderComponent creates PymupdfDocumentLoaderService driver successfully."""
+    """Verify DocumentLoaderComponent creates PymupdfDocumentLoaderDriver driver successfully."""
     config = PymupdfDocumentLoaderComponentConfig(
         type=ComponentType.DOCUMENT_LOADER,
         driver=DocumentLoaderDriverType.PYMUPDF,
@@ -28,7 +28,7 @@ def test_document_loader_component_loads_pymupdf():
     global_configs = MagicMock()
     comp = DocumentLoaderComponent(id="pymupdf_comp", config=config, global_configs=global_configs, daemon=False)
 
-    assert isinstance(comp.driver, PymupdfDocumentLoaderService)
+    assert isinstance(comp.driver, PymupdfDocumentLoaderDriver)
 
 
 def test_pymupdf_page_range_parsing():

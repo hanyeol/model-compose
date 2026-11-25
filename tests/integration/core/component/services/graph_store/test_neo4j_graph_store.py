@@ -17,7 +17,7 @@ from mindor.dsl.schema.action import Neo4jGraphStoreActionConfig
 from mindor.dsl.schema.component import Neo4jGraphStoreComponentConfig
 from mindor.core.component.services.graph_store.drivers.neo4j import (
     Neo4jGraphStoreAction,
-    Neo4jGraphStoreService,
+    Neo4jGraphStoreDriver,
     Neo4jQueryBuilder,
 )
 from mindor.core.component.context import ComponentActionContext
@@ -818,7 +818,7 @@ class TestHelperFunctions:
 
 
 class TestServiceLifecycle:
-    """Test Neo4jGraphStoreService lifecycle."""
+    """Test Neo4jGraphStoreDriver lifecycle."""
 
     @pytest.mark.anyio
     async def test_service_serve_and_shutdown(self):
@@ -830,7 +830,7 @@ class TestServiceLifecycle:
             username=NEO4J_USER,
             password=NEO4J_PASSWORD,
         )
-        service = Neo4jGraphStoreService("test-service", config, daemon=False)
+        service = Neo4jGraphStoreDriver("test-service", config, daemon=False)
 
         assert service.driver is None
 
@@ -855,5 +855,5 @@ class TestServiceLifecycle:
             username=NEO4J_USER,
             password=NEO4J_PASSWORD,
         )
-        service = Neo4jGraphStoreService("test-service", config, daemon=False)
+        service = Neo4jGraphStoreDriver("test-service", config, daemon=False)
         assert service.get_setup_requirements() == ["neo4j"]

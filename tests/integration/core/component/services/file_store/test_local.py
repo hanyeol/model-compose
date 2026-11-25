@@ -13,7 +13,7 @@ from pydantic import TypeAdapter
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.file_store.drivers.local import (
     LocalFileStoreAction,
-    LocalFileStoreService,
+    LocalFileStoreDriver,
 )
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
@@ -42,14 +42,14 @@ def _ctx(input: dict | None = None) -> ComponentActionContext:
     return ComponentActionContext("run-test", input or {})
 
 
-def _service(base_path: str) -> LocalFileStoreService:
+def _service(base_path: str) -> LocalFileStoreDriver:
     config = LocalFileStoreComponentConfig(
         type="file-store",
         driver="local",
         runtime={"type": "native"},
         base_path=base_path,
     )
-    return LocalFileStoreService("test", config, daemon=False)
+    return LocalFileStoreDriver("test", config, daemon=False)
 
 
 class TestPut:
@@ -829,7 +829,7 @@ class TestService:
             runtime={"type": "native"},
             base_path=base_path,
         )
-        service = LocalFileStoreService("test", config, daemon=False)
+        service = LocalFileStoreDriver("test", config, daemon=False)
         assert os.path.isabs(service.base_path)
         assert service.base_path == os.path.abspath(base_path)
 
@@ -843,7 +843,7 @@ class TestService:
             runtime={"type": "native"},
             base_path=new_base,
         )
-        service = LocalFileStoreService("test", config, daemon=False)
+        service = LocalFileStoreDriver("test", config, daemon=False)
         await service._start()
         assert os.path.isdir(new_base)
 

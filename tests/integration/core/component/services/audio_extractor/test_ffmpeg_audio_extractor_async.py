@@ -29,7 +29,7 @@ from unittest.mock import MagicMock
 
 from mindor.core.component.services.audio_extractor.drivers.ffmpeg import (
     FFmpegAudioExtractorAction,
-    FFmpegAudioExtractorService,
+    FFmpegAudioExtractorDriver,
 )
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioStreamResource
@@ -111,12 +111,12 @@ class TestActionRunSignature:
         assert params == ["self", "context"], f"unexpected run() signature: {params}"
 
     def test_service_run_signature_takes_action_and_context_only(self):
-        params = list(inspect.signature(FFmpegAudioExtractorService._run).parameters)
+        params = list(inspect.signature(FFmpegAudioExtractorDriver._run).parameters)
         assert params == ["self", "action", "context"], f"unexpected _run signature: {params}"
 
     @pytest.mark.anyio
     async def test_service_run_can_be_called_with_just_action_and_context(self, sample_video_path):
-        service = FFmpegAudioExtractorService(id="t", config=MagicMock(), daemon=False)
+        service = FFmpegAudioExtractorDriver(id="t", config=MagicMock(), daemon=False)
         action_config = AudioExtractorActionConfig(source="${input.file}", format="mp3")
         context = make_action_context(input={"file": FileStreamResource(sample_video_path)})
 

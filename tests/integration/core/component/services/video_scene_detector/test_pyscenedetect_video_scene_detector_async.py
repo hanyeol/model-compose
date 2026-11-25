@@ -38,7 +38,7 @@ from mindor.core.component.services.video_scene_detector.base import (
 )
 from mindor.core.component.services.video_scene_detector.drivers.pyscenedetect import (
     PySceneVideoSceneDetectorAction,
-    PySceneVideoSceneDetectorService,
+    PySceneVideoSceneDetectorDriver,
 )
 
 
@@ -147,12 +147,12 @@ class TestPySceneDetectorAsync:
 
     @pytest.mark.anyio
     async def test_service_run_signature_has_no_loop_kwarg(self, sample_video):
-        sig = inspect.signature(PySceneVideoSceneDetectorService._run)
+        sig = inspect.signature(PySceneVideoSceneDetectorDriver._run)
         assert list(sig.parameters.keys()) == ["self", "action", "context"], (
             f"Unexpected _run signature: {sig}"
         )
 
-        service = PySceneVideoSceneDetectorService.__new__(PySceneVideoSceneDetectorService)
+        service = PySceneVideoSceneDetectorDriver.__new__(PySceneVideoSceneDetectorDriver)
         VideoSceneDetectorDriver.__init__(service, "vsd", MagicMock(), False)
 
         ctx = _make_context(sample_video)

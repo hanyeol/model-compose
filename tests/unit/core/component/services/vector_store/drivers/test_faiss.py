@@ -7,7 +7,7 @@ from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilt
 from mindor.core.component.services.vector_store.base import VectorStoreDriverRegistry
 from mindor.core.component.services.vector_store.vector_store import VectorStoreComponent
 from mindor.core.component.services.vector_store.drivers.faiss import (
-    FaissVectorStoreService,
+    FaissVectorStoreDriver,
     FaissVectorStoreAction,
     FaissIndexManager,
 )
@@ -16,13 +16,13 @@ pytest.importorskip("faiss", reason="faiss-cpu is not installed")
 
 
 def test_faiss_driver_registration():
-    """Verify FaissVectorStoreService is registered in VectorStoreDriverRegistry."""
+    """Verify FaissVectorStoreDriver is registered in VectorStoreDriverRegistry."""
     assert VectorStoreDriverType.FAISS in VectorStoreDriverRegistry
-    assert VectorStoreDriverRegistry[VectorStoreDriverType.FAISS] is FaissVectorStoreService
+    assert VectorStoreDriverRegistry[VectorStoreDriverType.FAISS] is FaissVectorStoreDriver
 
 
 def test_vector_store_component_loads_faiss():
-    """Verify VectorStoreComponent creates FaissVectorStoreService driver successfully."""
+    """Verify VectorStoreComponent creates FaissVectorStoreDriver driver successfully."""
     config = FaissVectorStoreComponentConfig(
         type=ComponentType.VECTOR_STORE,
         driver=VectorStoreDriverType.FAISS,
@@ -31,7 +31,7 @@ def test_vector_store_component_loads_faiss():
     global_configs = MagicMock()
     comp = VectorStoreComponent(id="faiss_comp", config=config, global_configs=global_configs, daemon=False)
 
-    assert isinstance(comp.driver, FaissVectorStoreService)
+    assert isinstance(comp.driver, FaissVectorStoreDriver)
 
 
 def test_faiss_index_manager_insert_and_search():

@@ -10,20 +10,20 @@ from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilt
 from mindor.core.component.services.vector_store.base import VectorStoreDriverRegistry
 from mindor.core.component.services.vector_store.vector_store import VectorStoreComponent
 from mindor.core.component.services.vector_store.drivers.qdrant import (
-    QdrantVectorStoreService,
+    QdrantVectorStoreDriver,
     QdrantVectorStoreAction,
     QdrantFilterSpecBuilder,
 )
 
 
 def test_qdrant_driver_registration():
-    """Verify QdrantVectorStoreService is registered in VectorStoreDriverRegistry."""
+    """Verify QdrantVectorStoreDriver is registered in VectorStoreDriverRegistry."""
     assert VectorStoreDriverType.QDRANT in VectorStoreDriverRegistry
-    assert VectorStoreDriverRegistry[VectorStoreDriverType.QDRANT] is QdrantVectorStoreService
+    assert VectorStoreDriverRegistry[VectorStoreDriverType.QDRANT] is QdrantVectorStoreDriver
 
 
 def test_vector_store_component_loads_qdrant():
-    """Verify VectorStoreComponent creates QdrantVectorStoreService driver successfully."""
+    """Verify VectorStoreComponent creates QdrantVectorStoreDriver driver successfully."""
     config = QdrantVectorStoreComponentConfig(
         type=ComponentType.VECTOR_STORE,
         driver=VectorStoreDriverType.QDRANT,
@@ -32,7 +32,7 @@ def test_vector_store_component_loads_qdrant():
     global_configs = MagicMock()
     comp = VectorStoreComponent(id="qdrant_comp", config=config, global_configs=global_configs, daemon=False)
 
-    assert isinstance(comp.driver, QdrantVectorStoreService)
+    assert isinstance(comp.driver, QdrantVectorStoreDriver)
 
 
 def test_qdrant_connection_params_resolution_url():
@@ -44,7 +44,7 @@ def test_qdrant_connection_params_resolution_url():
         api_key="secret-key",
         timeout="10s",
     )
-    service = QdrantVectorStoreService(id="test_qdrant", config=config, daemon=False)
+    service = QdrantVectorStoreDriver(id="test_qdrant", config=config, daemon=False)
     params = service._resolve_connection_params()
 
     assert params["url"] == "http://qdrant.cluster:6333"
@@ -63,7 +63,7 @@ def test_qdrant_connection_params_resolution_host_port():
         prefer_grpc=True,
         https=True,
     )
-    service = QdrantVectorStoreService(id="test_qdrant", config=config, daemon=False)
+    service = QdrantVectorStoreDriver(id="test_qdrant", config=config, daemon=False)
     params = service._resolve_connection_params()
 
     assert params["host"] == "127.0.0.1"

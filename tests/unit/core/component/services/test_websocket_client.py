@@ -94,12 +94,12 @@ class TestWebSocketClientActionSend:
     async def test_send_dict_uses_send_message(self):
         """Dict message is sent via send_message (JSON)."""
         conn = make_connection(frames=[])
-        action = WebSocketClientAction(make_action_config(message={"type": "hello"}))
+        client = make_client(conn)
+        action = WebSocketClientAction(make_action_config(message={"type": "hello"}), client)
 
         ctx = make_context()
-        client = make_client(conn)
 
-        await action.run(ctx, client)
+        await action.run(ctx)
 
         conn.send_message.assert_awaited_once_with({"type": "hello"})
 
@@ -107,12 +107,12 @@ class TestWebSocketClientActionSend:
     async def test_send_list_uses_send_message(self):
         """List message is sent via send_message (JSON)."""
         conn = make_connection(frames=[])
-        action = WebSocketClientAction(make_action_config(message=[1, 2, 3]))
+        client = make_client(conn)
+        action = WebSocketClientAction(make_action_config(message=[1, 2, 3]), client)
 
         ctx = make_context()
-        client = make_client(conn)
 
-        await action.run(ctx, client)
+        await action.run(ctx)
 
         conn.send_message.assert_awaited_once_with([1, 2, 3])
 
@@ -120,12 +120,12 @@ class TestWebSocketClientActionSend:
     async def test_send_bytes_uses_send_bytes(self):
         """Bytes message is sent via send_bytes."""
         conn = make_connection(frames=[])
-        action = WebSocketClientAction(make_action_config(message=b"\x00\x01"))
+        client = make_client(conn)
+        action = WebSocketClientAction(make_action_config(message=b"\x00\x01"), client)
 
         ctx = make_context()
-        client = make_client(conn)
 
-        await action.run(ctx, client)
+        await action.run(ctx)
 
         conn.send_bytes.assert_awaited_once_with(b"\x00\x01")
 
@@ -133,12 +133,12 @@ class TestWebSocketClientActionSend:
     async def test_send_string_uses_websocket_send(self):
         """String message is sent via websocket.send."""
         conn = make_connection(frames=[])
-        action = WebSocketClientAction(make_action_config(message="hello"))
+        client = make_client(conn)
+        action = WebSocketClientAction(make_action_config(message="hello"), client)
 
         ctx = make_context()
-        client = make_client(conn)
 
-        await action.run(ctx, client)
+        await action.run(ctx)
 
         conn.websocket.send.assert_awaited_once_with("hello")
 
@@ -146,12 +146,12 @@ class TestWebSocketClientActionSend:
     async def test_no_send_when_message_is_none(self):
         """No send occurs when message is None."""
         conn = make_connection(frames=[])
-        action = WebSocketClientAction(make_action_config(message=None))
+        client = make_client(conn)
+        action = WebSocketClientAction(make_action_config(message=None), client)
 
         ctx = make_context()
-        client = make_client(conn)
 
-        await action.run(ctx, client)
+        await action.run(ctx)
 
         conn.send_message.assert_not_awaited()
         conn.send_bytes.assert_not_awaited()
@@ -167,12 +167,12 @@ class TestWebSocketClientActionReceiveSingle:
     async def test_receive_json_single(self):
         """Single JSON frame is parsed and returned."""
         conn = make_connection(frames=['{"key": "value"}'])
-        action = WebSocketClientAction(make_action_config(receive_format=WebSocketReceiveFormat.JSON))
+        client = make_client(conn)
+        action = WebSocketClientAction(make_action_config(receive_format=WebSocketReceiveFormat.JSON), client)
 
         ctx = make_context()
-        client = make_client(conn)
 
-        result = await action.run(ctx, client)
+        result = await action.run(ctx)
 
         assert result == {"key": "value"}
 
@@ -180,12 +180,12 @@ class TestWebSocketClientActionReceiveSingle:
     async def test_receive_text_single(self):
         """Single text frame is returned as-is."""
         conn = make_connection(frames=["hello world"])
-        action = WebSocketClientAction(make_action_config(receive_format=WebSocketReceiveFormat.TEXT))
+        client = make_client(conn)
+        action = WebSocketClientAction(make_action_config(receive_format=WebSocketReceiveFormat.TEXT), client)
 
         ctx = make_context()
-        client = make_client(conn)
 
-        result = await action.run(ctx, client)
+        result = await action.run(ctx)
 
         assert result == "hello world"
 
@@ -193,12 +193,12 @@ class TestWebSocketClientActionReceiveSingle:
     async def test_receive_binary_single(self):
         """Single binary frame is wrapped in BytesStreamResource."""
         conn = make_connection(frames=[b"\x89PNG"])
-        action = WebSocketClientAction(make_action_config(receive_format=WebSocketReceiveFormat.BINARY))
+        client = make_client(conn)
+        action = WebSocketClientAction(make_action_config(receive_format=WebSocketReceiveFormat.BINARY), client)
 
         ctx = make_context()
-        client = make_client(conn)
 
-        result = await action.run(ctx, client)
+        result = await action.run(ctx)
 
         assert isinstance(result, BytesStreamResource)
         assert result.data == b"\x89PNG"
@@ -207,12 +207,12 @@ class TestWebSocketClientActionReceiveSingle:
     async def test_receive_returns_none_on_empty(self):
         """Returns None when no frames are received."""
         conn = make_connection(frames=[])
-        action = WebSocketClientAction(make_action_config(receive_format=WebSocketReceiveFormat.JSON))
+        client = make_client(conn)
+        action = WebSocketClientAction(make_action_config(receive_format=WebSocketReceiveFormat.JSON), client)
 
         ctx = make_context()
-        client = make_client(conn)
 
-        result = await action.run(ctx, client)
+        result = await action.run(ctx)
 
         assert result is None
 
@@ -224,14 +224,14 @@ class TestWebSocketClientActionReceiveCollect:
     async def test_collect_json(self):
         """Collect mode gathers all JSON frames into a list."""
         conn = make_connection(frames=['{"a":1}', '{"b":2}'])
+        client = make_client(conn)
         action = WebSocketClientAction(make_action_config(
             receive_format=WebSocketReceiveFormat.JSON, collect=True
-        ))
+        ), client)
 
         ctx = make_context()
-        client = make_client(conn)
 
-        result = await action.run(ctx, client)
+        result = await action.run(ctx)
 
         assert result == [{"a": 1}, {"b": 2}]
 
@@ -239,14 +239,14 @@ class TestWebSocketClientActionReceiveCollect:
     async def test_collect_binary(self):
         """Collect mode concatenates all binary frames."""
         conn = make_connection(frames=[b"\x00\x01", b"\x02\x03"])
+        client = make_client(conn)
         action = WebSocketClientAction(make_action_config(
             receive_format=WebSocketReceiveFormat.BINARY, collect=True
-        ))
+        ), client)
 
         ctx = make_context()
-        client = make_client(conn)
 
-        result = await action.run(ctx, client)
+        result = await action.run(ctx)
 
         assert isinstance(result, BytesStreamResource)
         assert result.data == b"\x00\x01\x02\x03"
@@ -261,15 +261,15 @@ class TestWebSocketClientActionReceiveStream:
     async def test_stream_json(self):
         """Streaming mode yields each decoded JSON frame."""
         conn = make_connection(frames=['{"n":1}', '{"n":2}'])
+        client = make_client(conn)
         action = WebSocketClientAction(make_action_config(
             receive_format=WebSocketReceiveFormat.JSON, streaming=True, output="${response[]}"
-        ))
+        ), client)
 
         ctx = make_context()
         ctx.render_variable = AsyncMock(side_effect=lambda v, **kw: v)
-        client = make_client(conn)
 
-        stream = await action.run(ctx, client)
+        stream = await action.run(ctx)
         items = [item async for item in stream]
 
         assert len(items) == 2
@@ -279,15 +279,15 @@ class TestWebSocketClientActionReceiveStream:
     async def test_streaming_true_returns_stream_generator(self):
         """streaming=True returns an async generator that yields decoded frames."""
         conn = make_connection(frames=['{"n":1}', '{"n":2}', '{"n":3}'])
+        client = make_client(conn)
         action = WebSocketClientAction(make_action_config(
             receive_format=WebSocketReceiveFormat.JSON, streaming=True
-        ))
+        ), client)
 
         ctx = make_context()
         ctx.render_variable = AsyncMock(side_effect=lambda v, **kw: v)
-        client = make_client(conn)
 
-        stream = await action.run(ctx, client)
+        stream = await action.run(ctx)
         assert hasattr(stream, "__aiter__")
 
         items = [item async for item in stream]
@@ -303,28 +303,28 @@ class TestWebSocketClientActionReceiveStream:
     async def test_streaming_and_collect_conflict_raises(self):
         """Setting both streaming=True and collect=True raises ValueError."""
         conn = make_connection(frames=['{"n":1}'])
+        client = make_client(conn)
         action = WebSocketClientAction(make_action_config(
             receive_format=WebSocketReceiveFormat.JSON, streaming=True, collect=True
-        ))
+        ), client)
 
         ctx = make_context()
-        client = make_client(conn)
 
         with pytest.raises(ValueError, match="'collect' and 'streaming' cannot both be set"):
-            await action.run(ctx, client)
+            await action.run(ctx)
 
     @pytest.mark.anyio
     async def test_streaming_false_uses_single(self):
         """streaming=False and collect=False takes the _receive_single path."""
         conn = make_connection(frames=['{"first": true}', '{"second": true}'])
+        client = make_client(conn)
         action = WebSocketClientAction(make_action_config(
             receive_format=WebSocketReceiveFormat.JSON, streaming=False, collect=False
-        ))
+        ), client)
 
         ctx = make_context()
-        client = make_client(conn)
 
-        result = await action.run(ctx, client)
+        result = await action.run(ctx)
 
         # _receive_single returns only the first decoded frame.
         assert result == {"first": True}
@@ -341,10 +341,10 @@ class TestWebSocketClientActionConnectionLifecycle:
         conn = make_connection(frames=['{"ok":true}'])
         client = make_client(conn)
 
-        action = WebSocketClientAction(make_action_config())
+        action = WebSocketClientAction(make_action_config(), client)
         ctx = make_context()
 
-        await action.run(ctx, client)
+        await action.run(ctx)
 
         conn.close.assert_not_awaited()
 
@@ -354,10 +354,10 @@ class TestWebSocketClientActionConnectionLifecycle:
         conn = make_connection(frames=['{"ok":true}'])
         client = make_client(conn)
 
-        action = WebSocketClientAction(make_action_config(path="/custom"))
+        action = WebSocketClientAction(make_action_config(path="/custom"), client)
         ctx = make_context()
 
-        await action.run(ctx, client)
+        await action.run(ctx)
 
         conn.close.assert_awaited_once()
 
@@ -368,11 +368,11 @@ class TestWebSocketClientActionConnectionLifecycle:
         conn.send_message = AsyncMock(side_effect=RuntimeError("send failed"))
         client = make_client(conn)
 
-        action = WebSocketClientAction(make_action_config(path="/custom", message={"fail": True}))
+        action = WebSocketClientAction(make_action_config(path="/custom", message={"fail": True}), client)
         ctx = make_context()
 
         with pytest.raises(RuntimeError, match="send failed"):
-            await action.run(ctx, client)
+            await action.run(ctx)
 
         conn.close.assert_awaited_once()
 
@@ -386,13 +386,13 @@ class TestWebSocketClientActionOutput:
     async def test_output_template_rendered(self):
         """When output is set, render_variable is called with the output template."""
         conn = make_connection(frames=['{"data": "test"}'])
-        action = WebSocketClientAction(make_action_config(output="${response.data}"))
+        client = make_client(conn)
+        action = WebSocketClientAction(make_action_config(output="${response.data}"), client)
 
         ctx = make_context()
         ctx.render_variable = AsyncMock(side_effect=lambda v, **kw: v)
-        client = make_client(conn)
 
-        await action.run(ctx, client)
+        await action.run(ctx)
 
         ctx.register_source.assert_called_once_with("response", {"data": "test"})
 
@@ -400,11 +400,11 @@ class TestWebSocketClientActionOutput:
     async def test_no_output_returns_raw_response(self):
         """When output is None, the raw response is returned."""
         conn = make_connection(frames=['{"raw": true}'])
-        action = WebSocketClientAction(make_action_config(output=None))
+        client = make_client(conn)
+        action = WebSocketClientAction(make_action_config(output=None), client)
 
         ctx = make_context()
-        client = make_client(conn)
 
-        result = await action.run(ctx, client)
+        result = await action.run(ctx)
 
         assert result == {"raw": True}

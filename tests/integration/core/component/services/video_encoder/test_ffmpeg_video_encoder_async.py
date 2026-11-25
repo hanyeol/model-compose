@@ -27,7 +27,7 @@ from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.video_encoder.base import VideoEncoderDriver
 from mindor.core.component.services.video_encoder.drivers.ffmpeg import (
     FFmpegVideoEncoderAction,
-    FFmpegVideoEncoderService,
+    FFmpegVideoEncoderDriver,
 )
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.file import FileStreamResource
@@ -199,12 +199,12 @@ class TestFFmpegVideoEncoderAsync:
     @pytest.mark.anyio
     async def test_service_run_signature_has_no_loop_kwarg(self):
         """After the refactor, `Service._run` takes (action, context) only — no `loop`."""
-        sig = inspect.signature(FFmpegVideoEncoderService._run)
+        sig = inspect.signature(FFmpegVideoEncoderDriver._run)
         assert list(sig.parameters.keys()) == ["self", "action", "context"], (
             f"Unexpected _run signature: {sig}"
         )
 
-        service = FFmpegVideoEncoderService.__new__(FFmpegVideoEncoderService)
+        service = FFmpegVideoEncoderDriver.__new__(FFmpegVideoEncoderDriver)
         VideoEncoderDriver.__init__(service, "ve", MagicMock(), False)
 
         frames = _make_frames(count=24)

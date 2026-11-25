@@ -67,8 +67,8 @@ async def served():
 async def _stream(client, action=None):
     context = MagicMock()
     context.render_variable = AsyncMock(side_effect=lambda value, **_: value)
-    action = action or HttpClientAction(HttpClientActionConfig(path="/events", method="POST"))
-    return await action.run(context, client)
+    action = action or HttpClientAction(HttpClientActionConfig(path="/events", method="POST"), client)
+    return await action.run(context)
 
 
 def _wrapped(stream):
@@ -79,12 +79,13 @@ def _wrapped(stream):
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("action", [
-    HttpClientAction(HttpClientActionConfig(path="/events", method="POST")),
-    HttpServerAction(HttpServerActionConfig(path="/events", method="POST")),
+@pytest.mark.parametrize("make_action", [
+    lambda client: HttpClientAction(HttpClientActionConfig(path="/events", method="POST"), client),
+    lambda client: HttpServerAction(HttpServerActionConfig(path="/events", method="POST"), client),
 ], ids=["http-client", "http-server"])
-async def test_closing_the_stream_ends_the_request(served, action):
+async def test_closing_the_stream_ends_the_request(served, make_action):
     client, events = served
+    action = make_action(client)
     iterator = (await _stream(client, action)).__aiter__()
 
     assert [await iterator.__anext__() for _ in range(2)] == [b"0", b"1"]

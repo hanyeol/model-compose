@@ -38,7 +38,7 @@ from mindor.core.component.services.video_frame_extractor.base import (
 )
 from mindor.core.component.services.video_frame_extractor.drivers.opencv import (
     OpenCVVideoFrameExtractorAction,
-    OpenCVVideoFrameExtractorService,
+    OpenCVVideoFrameExtractorDriver,
 )
 
 from PIL import Image as PILImage
@@ -166,12 +166,12 @@ class TestOpenCVVideoFrameExtractorAsync:
 
     @pytest.mark.anyio
     async def test_service_run_signature_has_no_loop_kwarg(self, sample_video):
-        sig = inspect.signature(OpenCVVideoFrameExtractorService._run)
+        sig = inspect.signature(OpenCVVideoFrameExtractorDriver._run)
         assert list(sig.parameters.keys()) == ["self", "action", "context"], (
             f"Unexpected _run signature: {sig}"
         )
 
-        service = OpenCVVideoFrameExtractorService.__new__(OpenCVVideoFrameExtractorService)
+        service = OpenCVVideoFrameExtractorDriver.__new__(OpenCVVideoFrameExtractorDriver)
         VideoFrameExtractorDriver.__init__(service, "vfe", MagicMock(), False)
 
         ctx = _make_context()

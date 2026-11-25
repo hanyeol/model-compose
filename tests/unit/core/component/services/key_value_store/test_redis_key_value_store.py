@@ -19,7 +19,7 @@ from mindor.dsl.schema.action import (
 )
 from mindor.core.component.services.key_value_store.drivers.redis import (
     RedisKeyValueStoreAction,
-    RedisKeyValueStoreService,
+    RedisKeyValueStoreDriver,
 )
 from mindor.core.component.context import ComponentActionContext
 

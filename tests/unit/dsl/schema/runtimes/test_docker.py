@@ -5,6 +5,7 @@ import pytest
 from mindor.dsl.schema.runtime.impl.docker import DockerRuntimeConfig
 from mindor.dsl.schema.containers.docker import (
     DockerBuildConfig,
+    DockerContainerConfig,
     DockerPortConfig,
     DockerVolumeConfig,
     DockerHealthCheck,
@@ -171,215 +172,230 @@ class TestDockerRuntimeConfig:
         """Test minimal configuration with image."""
         config = DockerRuntimeConfig(
             type="docker",
-            image="nginx:latest"
+            container=DockerContainerConfig(image="nginx:latest"),
         )
 
         assert config.type == "docker"
-        assert config.image == "nginx:latest"
-        assert config.build is None
-        assert config.restart == "no"
+        assert config.container.image == "nginx:latest"
+        assert config.container.build is None
+        assert config.container.restart == "no"
 
     def test_config_with_build(self):
         """Test configuration with build settings."""
         config = DockerRuntimeConfig(
             type="docker",
-            build=DockerBuildConfig(
-                context=".",
-                dockerfile="Dockerfile"
-            )
+            container=DockerContainerConfig(
+                build=DockerBuildConfig(
+                    context=".",
+                    dockerfile="Dockerfile"
+                ),
+            ),
         )
 
         assert config.type == "docker"
-        assert config.build is not None
-        assert config.build.context == "."
-        assert config.build.dockerfile == "Dockerfile"
+        assert config.container.build is not None
+        assert config.container.build.context == "."
+        assert config.container.build.dockerfile == "Dockerfile"
 
     def test_port_configurations(self):
         """Test various port configuration formats."""
         config = DockerRuntimeConfig(
             type="docker",
-            image="nginx:latest",
-            ports=[
-                8080,  # Simple int
-                "9090:8080",  # String format
-                DockerPortConfig(container_port=3000, host_port=80)  # Object format
-            ]
+            container=DockerContainerConfig(
+                image="nginx:latest",
+                ports=[
+                    8080,  # Simple int
+                    "9090:8080",  # String format
+                    DockerPortConfig(container_port=3000, host_port=80)  # Object format
+                ],
+            ),
         )
 
-        assert len(config.ports) == 3
-        assert config.ports[0] == 8080
-        assert config.ports[1] == "9090:8080"
-        assert isinstance(config.ports[2], DockerPortConfig)
+        assert len(config.container.ports) == 3
+        assert config.container.ports[0] == 8080
+        assert config.container.ports[1] == "9090:8080"
+        assert isinstance(config.container.ports[2], DockerPortConfig)
 
     def test_volume_configurations(self):
         """Test various volume configuration formats."""
         config = DockerRuntimeConfig(
             type="docker",
-            image="nginx:latest",
-            volumes=[
-                "/host:/container",  # Simple string
-                DockerVolumeConfig(
-                    type="bind",
-                    source="/data",
-                    target="/app/data"
-                )
-            ]
+            container=DockerContainerConfig(
+                image="nginx:latest",
+                volumes=[
+                    "/host:/container",  # Simple string
+                    DockerVolumeConfig(
+                        type="bind",
+                        source="/data",
+                        target="/app/data"
+                    )
+                ],
+            ),
         )
 
-        assert len(config.volumes) == 2
-        assert config.volumes[0] == "/host:/container"
-        assert isinstance(config.volumes[1], DockerVolumeConfig)
+        assert len(config.container.volumes) == 2
+        assert config.container.volumes[0] == "/host:/container"
+        assert isinstance(config.container.volumes[1], DockerVolumeConfig)
 
     def test_environment_variables(self):
         """Test environment variable configuration."""
         config = DockerRuntimeConfig(
             type="docker",
-            image="nginx:latest",
-            environment={
-                "ENV": "production",
-                "DEBUG": False,
-                "PORT": 8080,
-                "TIMEOUT": 30.5
-            }
+            container=DockerContainerConfig(
+                image="nginx:latest",
+                environment={
+                    "ENV": "production",
+                    "DEBUG": False,
+                    "PORT": 8080,
+                    "TIMEOUT": 30.5
+                },
+            ),
         )
 
-        assert config.environment["ENV"] == "production"
-        assert config.environment["DEBUG"] is False
-        assert config.environment["PORT"] == 8080
-        assert config.environment["TIMEOUT"] == 30.5
+        assert config.container.environment["ENV"] == "production"
+        assert config.container.environment["DEBUG"] is False
+        assert config.container.environment["PORT"] == 8080
+        assert config.container.environment["TIMEOUT"] == 30.5
 
     def test_env_file_string(self):
         """Test env_file as string."""
         config = DockerRuntimeConfig(
             type="docker",
-            image="nginx:latest",
-            env_file=".env"
+            container=DockerContainerConfig(image="nginx:latest", env_file=".env"),
         )
 
-        assert config.env_file == ".env"
+        assert config.container.env_file == ".env"
 
     def test_env_file_list(self):
         """Test env_file as list."""
         config = DockerRuntimeConfig(
             type="docker",
-            image="nginx:latest",
-            env_file=[ ".env", ".env.production" ]
+            container=DockerContainerConfig(
+                image="nginx:latest",
+                env_file=[ ".env", ".env.production" ],
+            ),
         )
 
-        assert config.env_file == [ ".env", ".env.production" ]
+        assert config.container.env_file == [ ".env", ".env.production" ]
 
     def test_command_string(self):
         """Test command as string."""
         config = DockerRuntimeConfig(
             type="docker",
-            image="nginx:latest",
-            command="python app.py"
+            container=DockerContainerConfig(image="nginx:latest", command="python app.py"),
         )
 
-        assert config.command == "python app.py"
+        assert config.container.command == "python app.py"
 
     def test_command_list(self):
         """Test command as list."""
         config = DockerRuntimeConfig(
             type="docker",
-            image="nginx:latest",
-            command=[ "python", "app.py", "--port", "8080" ]
+            container=DockerContainerConfig(
+                image="nginx:latest",
+                command=[ "python", "app.py", "--port", "8080" ],
+            ),
         )
 
-        assert config.command == [ "python", "app.py", "--port", "8080" ]
+        assert config.container.command == [ "python", "app.py", "--port", "8080" ]
 
     def test_resource_limits(self):
         """Test resource limit configuration."""
         config = DockerRuntimeConfig(
             type="docker",
-            image="nginx:latest",
-            mem_limit="512m",
-            memswap_limit="1g",
-            cpus="1.5",
-            cpu_shares=512
+            container=DockerContainerConfig(
+                image="nginx:latest",
+                mem_limit="512m",
+                memswap_limit="1g",
+                cpus="1.5",
+                cpu_shares=512,
+            ),
         )
 
-        assert config.mem_limit == "512m"
-        assert config.memswap_limit == "1g"
-        assert config.cpus == "1.5"
-        assert config.cpu_shares == 512
+        assert config.container.mem_limit == "512m"
+        assert config.container.memswap_limit == "1g"
+        assert config.container.cpus == "1.5"
+        assert config.container.cpu_shares == 512
 
     def test_restart_policies(self):
         """Test all restart policies."""
         for policy in [ "no", "always", "on-failure", "unless-stopped" ]:
             config = DockerRuntimeConfig(
                 type="docker",
-                image="nginx:latest",
-                restart=policy
+                container=DockerContainerConfig(image="nginx:latest", restart=policy),
             )
-            assert config.restart == policy
+            assert config.container.restart == policy
 
     def test_full_configuration(self):
         """Test comprehensive configuration."""
         config = DockerRuntimeConfig(
             type="docker",
-            image="myapp:latest",
-            build=DockerBuildConfig(
-                context=".",
-                dockerfile="Dockerfile",
-                args={"VERSION": "1.0.0" }
+            container=DockerContainerConfig(
+                image="myapp:latest",
+                build=DockerBuildConfig(
+                    context=".",
+                    dockerfile="Dockerfile",
+                    args={"VERSION": "1.0.0" }
+                ),
+                container_name="myapp-container",
+                hostname="myapp",
+                ports=[ 8080, "9090:8080" ],
+                networks=[ "frontend", "backend" ],
+                volumes=[ "/data:/app/data" ],
+                environment={ "ENV": "production" },
+                env_file=".env",
+                command=[ "python", "app.py" ],
+                entrypoint=[ "/entrypoint.sh" ],
+                working_dir="/app",
+                user="appuser",
+                mem_limit="1g",
+                cpus="2.0",
+                restart="unless-stopped",
+                healthcheck=DockerHealthCheck(
+                    test="curl -f http://localhost/health"
+                ),
+                labels={ "app": "myapp" },
+                privileged=False,
+                security_opt=["no-new-privileges"],
             ),
-            container_name="myapp-container",
-            hostname="myapp",
-            ports=[ 8080, "9090:8080" ],
-            networks=[ "frontend", "backend" ],
-            volumes=[ "/data:/app/data" ],
-            environment={ "ENV": "production" },
-            env_file=".env",
-            command=[ "python", "app.py" ],
-            entrypoint=[ "/entrypoint.sh" ],
-            working_dir="/app",
-            user="appuser",
-            mem_limit="1g",
-            cpus="2.0",
-            restart="unless-stopped",
-            healthcheck=DockerHealthCheck(
-                test="curl -f http://localhost/health"
-            ),
-            labels={ "app": "myapp" },
-            privileged=False,
-            security_opt=["no-new-privileges"]
         )
 
         assert config.type == "docker"
-        assert config.image == "myapp:latest"
-        assert config.container_name == "myapp-container"
-        assert config.hostname == "myapp"
-        assert len(config.ports) == 2
-        assert len(config.networks) == 2
-        assert len(config.volumes) == 1
-        assert config.environment["ENV"] == "production"
-        assert config.restart == "unless-stopped"
-        assert config.healthcheck is not None
-        assert config.privileged is False
+        assert config.container.image == "myapp:latest"
+        assert config.container.container_name == "myapp-container"
+        assert config.container.hostname == "myapp"
+        assert len(config.container.ports) == 2
+        assert len(config.container.networks) == 2
+        assert len(config.container.volumes) == 1
+        assert config.container.environment["ENV"] == "production"
+        assert config.container.restart == "unless-stopped"
+        assert config.container.healthcheck is not None
+        assert config.container.privileged is False
 
     def test_networks_default(self):
         """Test networks defaults to empty list."""
         config = DockerRuntimeConfig(
             type="docker",
-            image="nginx:latest"
+            container=DockerContainerConfig(image="nginx:latest"),
         )
 
-        assert config.networks == []
+        assert config.container.networks == []
 
     def test_security_options(self):
         """Test security options."""
         config = DockerRuntimeConfig(
             type="docker",
-            image="nginx:latest",
-            security_opt=[
-                "no-new-privileges",
-                "seccomp=unconfined"
-            ]
+            container=DockerContainerConfig(
+                image="nginx:latest",
+                security_opt=[
+                    "no-new-privileges",
+                    "seccomp=unconfined"
+                ],
+            ),
         )
 
-        assert len(config.security_opt) == 2
-        assert "no-new-privileges" in config.security_opt
+        assert len(config.container.security_opt) == 2
+        assert "no-new-privileges" in config.container.security_opt
 
 
 class TestDockerRuntimeConfigValidation:
@@ -389,25 +405,23 @@ class TestDockerRuntimeConfigValidation:
         """Test that config can be created without image or build (they're optional)."""
         config = DockerRuntimeConfig(type="docker")
 
-        assert config.image is None
-        assert config.build is None
+        assert config.container.image is None
+        assert config.container.build is None
 
     def test_cpus_as_float(self):
         """Test cpus can be float."""
         config = DockerRuntimeConfig(
             type="docker",
-            image="nginx:latest",
-            cpus=1.5
+            container=DockerContainerConfig(image="nginx:latest", cpus=1.5),
         )
 
-        assert config.cpus == 1.5
+        assert config.container.cpus == 1.5
 
     def test_cpus_as_string(self):
         """Test cpus can be string."""
         config = DockerRuntimeConfig(
             type="docker",
-            image="nginx:latest",
-            cpus="1.5"
+            container=DockerContainerConfig(image="nginx:latest", cpus="1.5"),
         )
 
-        assert config.cpus == "1.5"
+        assert config.container.cpus == "1.5"

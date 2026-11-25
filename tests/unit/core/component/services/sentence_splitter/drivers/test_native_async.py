@@ -25,7 +25,7 @@ import pytest
 
 from mindor.core.component.services.sentence_splitter.drivers.native import (
     NativeSentenceSplitterAction,
-    NativeSentenceSplitterService,
+    NativeSentenceSplitterDriver,
     NativeStreamingSentenceSplitter,
 )
 from mindor.dsl.schema.action import NativeSentenceSplitterActionConfig
@@ -177,13 +177,13 @@ class TestNativeSentenceSplitterActionNonBlocking:
 
 
 class TestNativeSentenceSplitterServiceSignature:
-    """Runtime shape assertions on `NativeSentenceSplitterService._run`."""
+    """Runtime shape assertions on `NativeSentenceSplitterDriver._run`."""
 
     def test_run_has_no_loop_kwarg(self):
-        signature = inspect.signature(NativeSentenceSplitterService._run)
+        signature = inspect.signature(NativeSentenceSplitterDriver._run)
         param_names = list(signature.parameters.keys())
         assert "loop" not in param_names, (
-            f"NativeSentenceSplitterService._run should not accept a `loop` kwarg; "
+            f"NativeSentenceSplitterDriver._run should not accept a `loop` kwarg; "
             f"got parameters {param_names!r}"
         )
         # Positive shape: (self, action, context)

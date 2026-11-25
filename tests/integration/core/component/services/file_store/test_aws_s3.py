@@ -16,7 +16,7 @@ pytest.importorskip("aioboto3")
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.file_store.drivers.aws_s3 import (
     AwsS3FileStoreAction,
-    AwsS3FileStoreService,
+    AwsS3FileStoreDriver,
     S3Location,
 )
 from mindor.core.foundation.streaming.resources import StreamResource
@@ -65,7 +65,7 @@ def _location(region: str | None = REGION, endpoint: str | None = None) -> S3Loc
 
 
 def _make_action(client, config: dict, base_path: str | None = None) -> AwsS3FileStoreAction:
-    # AwsS3FileStoreService normalizes base_path before passing it in; mirror that here.
+    # AwsS3FileStoreDriver normalizes base_path before passing it in; mirror that here.
     normalized = (base_path.rstrip("/") + "/") if base_path else None
     return AwsS3FileStoreAction(
         _action(config),

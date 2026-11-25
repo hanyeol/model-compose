@@ -28,7 +28,7 @@ import pytest
 
 from mindor.core.component.services.transcript_corrector.drivers.native import (
     NativeTranscriptCorrectorAction,
-    NativeTranscriptCorrectorService,
+    NativeTranscriptCorrectorDriver,
     NativeStreamingTranscriptCorrector,
 )
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
@@ -340,13 +340,13 @@ class TestNonBlocking:
 
 
 class TestServiceSignature:
-    """Runtime shape assertions on ``NativeTranscriptCorrectorService._run``."""
+    """Runtime shape assertions on ``NativeTranscriptCorrectorDriver._run``."""
 
     def test_run_has_no_loop_kwarg(self):
-        signature = inspect.signature(NativeTranscriptCorrectorService._run)
+        signature = inspect.signature(NativeTranscriptCorrectorDriver._run)
         param_names = list(signature.parameters.keys())
         assert "loop" not in param_names, (
-            f"NativeTranscriptCorrectorService._run should not accept a `loop` kwarg; "
+            f"NativeTranscriptCorrectorDriver._run should not accept a `loop` kwarg; "
             f"got parameters {param_names!r}"
         )
         assert param_names == ["self", "action", "context"]

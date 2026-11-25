@@ -28,7 +28,7 @@ from mindor.core.component.services.video_scene_detector.base import (
 )
 from mindor.core.component.services.video_scene_detector.drivers.ffmpeg import (
     FFmpegVideoSceneDetectorAction,
-    FFmpegVideoSceneDetectorService,
+    FFmpegVideoSceneDetectorDriver,
 )
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
@@ -147,12 +147,12 @@ class TestFFmpegVideoSceneDetectorAsync:
 
     @pytest.mark.anyio
     async def test_service_run_signature_has_no_loop_kwarg(self, sample_video):
-        sig = inspect.signature(FFmpegVideoSceneDetectorService._run)
+        sig = inspect.signature(FFmpegVideoSceneDetectorDriver._run)
         assert list(sig.parameters.keys()) == ["self", "action", "context"], (
             f"Unexpected _run signature: {sig}"
         )
 
-        service = FFmpegVideoSceneDetectorService.__new__(FFmpegVideoSceneDetectorService)
+        service = FFmpegVideoSceneDetectorDriver.__new__(FFmpegVideoSceneDetectorDriver)
         VideoSceneDetectorDriver.__init__(service, "vsd", MagicMock(), False)
 
         ctx = _make_context(sample_video)

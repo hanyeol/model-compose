@@ -30,7 +30,7 @@ from mindor.core.component.services.video_frame_extractor.base import (
 )
 from mindor.core.component.services.video_frame_extractor.drivers.ffmpeg import (
     FFmpegVideoFrameExtractorAction,
-    FFmpegVideoFrameExtractorService,
+    FFmpegVideoFrameExtractorDriver,
 )
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.file import FileStreamResource
@@ -163,12 +163,12 @@ class TestFFmpegVideoFrameExtractorAsync:
 
     @pytest.mark.anyio
     async def test_service_run_signature_has_no_loop_kwarg(self, sample_video):
-        sig = inspect.signature(FFmpegVideoFrameExtractorService._run)
+        sig = inspect.signature(FFmpegVideoFrameExtractorDriver._run)
         assert list(sig.parameters.keys()) == ["self", "action", "context"], (
             f"Unexpected _run signature: {sig}"
         )
 
-        service = FFmpegVideoFrameExtractorService.__new__(FFmpegVideoFrameExtractorService)
+        service = FFmpegVideoFrameExtractorDriver.__new__(FFmpegVideoFrameExtractorDriver)
         VideoFrameExtractorDriver.__init__(service, "vfe", MagicMock(), False)
 
         ctx = _make_context()

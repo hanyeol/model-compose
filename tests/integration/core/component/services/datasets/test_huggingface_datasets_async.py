@@ -25,7 +25,7 @@ from datasets import Dataset
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.datasets.drivers.huggingface import (
     HuggingfaceDatasetsAction,
-    HuggingfaceDatasetsService,
+    HuggingfaceDatasetsDriver,
 )
 from mindor.dsl.schema.action import (
     HuggingfaceDatasetsSelectActionConfig,
@@ -125,7 +125,7 @@ class TestHuggingfaceDatasetsContract:
 
 class TestHuggingfaceDatasetsServiceSignature:
     def test_service_run_has_no_loop_kwarg(self):
-        signature = inspect.signature(HuggingfaceDatasetsService._run)
+        signature = inspect.signature(HuggingfaceDatasetsDriver._run)
         param_names = list(signature.parameters.keys())
         assert "loop" not in param_names
         assert param_names == ["self", "action", "context"]

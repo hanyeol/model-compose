@@ -24,8 +24,12 @@ if TYPE_CHECKING:
     from transformers import PreTrainedModel
     import torch
 
-_PI_H3_TRANSFORMER_FP8_EXCLUDE: Tuple[str, ...] = (
+_PI_H3_DWD_TRANSFORMER_FP8_EXCLUDE: Tuple[str, ...] = (
     "lora", "norm_out", "proj_out", "dwd_linear_head",
+)
+
+_PI_H3_VAE_TRANSFORMER_FP8_EXCLUDE: Tuple[str, ...] = (
+    "lora", "self.norm_out", "self.proj_out", "self.audio_proj_out",
 )
 
 _PI_H3_TEXT_ENCODER_FP8_EXCLUDE: Tuple[str, ...] = (
@@ -37,7 +41,24 @@ _PI_H3_FRAME_OFFSET = 5
 _PI_H3_MIN_FRAMES = 124
 _PI_H3_MAX_FRAMES = 345
 
+_PI_H3_VIDEO_SHIFT = 12.0
+_PI_H3_AUDIO_SHIFT = 3.0
+_PI_H3_MAX_RAW_T: Dict[int, float] = { 2: 0.93, 4: 0.96 }
+
+_PI_H3_RGB_DECODE_MEAN: Tuple[float, float, float] = (-0.03, -0.088, -0.188)
+_PI_H3_RGB_DECODE_STD: Tuple[float, float, float] = (0.458, 0.448, 0.45)
+
+_PI_H3_VAE_DECODE_TILE_BATCH_SIZE = 28
+
 _PI_H3_DWD_OUTPUT_KEYS: Tuple[str, ...] = ("dwd_pixels", "audio", "sampling_rate")
+_PI_H3_VAE_OUTPUT_KEYS: Tuple[str, ...] = ("videos", "audio", "sampling_rate")
+
+_PI_H3_DWD_COMPONENT_NAMES: Tuple[str, ...] = (
+    "text_encoder", "tokenizer", "processor", "vae", "audio_vae", "transformer",
+)
+_PI_H3_VAE_COMPONENT_NAMES: Tuple[str, ...] = (
+    "text_encoder", "tokenizer", "processor", "audio_vae", "transformer",
+)
 
 class PiH3ImageToVideoTaskAction(ImageToVideoTaskAction):
     config: PiH3ImageToVideoModelActionConfig
@@ -48,27 +69,22 @@ class PiH3ImageToVideoTaskAction(ImageToVideoTaskAction):
         pipeline: Any,
         dwd: bool,
         step_count: int,
+        color_encoder: Optional[Any],
     ):
         super().__init__(config)
 
         self.pipeline: Any = pipeline
         self.dwd: bool = dwd
         self.step_count: int = step_count
+        self.color_encoder: Optional[Any] = color_encoder
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        num_frames  = await context.render_scalar(self.config.params.num_frames, int)
-        video_shift = await context.render_scalar(self.config.params.video_shift, float) if self.config.params.video_shift is not None else None
-        audio_shift = await context.render_scalar(self.config.params.audio_shift, float) if self.config.params.audio_shift is not None else None
-
+        num_frames = await context.render_scalar(self.config.params.num_frames, int)
         num_frames = self._snap_num_frames(num_frames)
 
-        params.update({
-            "num_frames":  num_frames,
-            "video_shift": video_shift,
-            "audio_shift": audio_shift,
-        })
+        params.update({ "num_frames": num_frames })
 
         return params
 
@@ -84,49 +100,31 @@ class PiH3ImageToVideoTaskAction(ImageToVideoTaskAction):
             import torch
 
             results: List[VideoStreamResource] = []
+            output_keys = _PI_H3_DWD_OUTPUT_KEYS if self.dwd else _PI_H3_VAE_OUTPUT_KEYS
 
-            if params["video_shift"] is not None:
-                saved_video_shift = self._apply_scheduler_shift("scheduler", params["video_shift"])
-            else:
-                saved_video_shift = None
+            for image, last_image, prompt in zip(images, last_images, prompts):
+                if params["seed"] is not None:
+                    generator = torch.Generator(device=self.pipeline.device).manual_seed(params["seed"])
+                else:
+                    generator = None
 
-            if params["audio_shift"] is not None:
-                saved_audio_shift = self._apply_scheduler_shift("audio_scheduler", params["audio_shift"])
-            else:
-                saved_audio_shift = None
+                pipeline_params: Dict[str, Any] = {
+                    "prompt": prompt or "",
+                    "image": image,
+                    "height": params["height"],
+                    "width": params["width"],
+                    "num_frames": params["num_frames"],
+                    "num_inference_steps": self.step_count,
+                    "generator": generator,
+                    "output": list(output_keys),
+                }
 
-            try:
-                for image, last_image, prompt in zip(images, last_images, prompts):
-                    if params["seed"] is not None:
-                        generator = torch.Generator(device=self.pipeline.device).manual_seed(params["seed"])
-                    else:
-                        generator = None
+                if last_image is not None:
+                    pipeline_params["last_image"] = last_image
 
-                    pipeline_params: Dict[str, Any] = {
-                        "prompt": prompt or "",
-                        "image": image,
-                        "height": params["height"],
-                        "width": params["width"],
-                        "num_frames": params["num_frames"],
-                        "num_inference_steps": self.step_count,
-                        "generator": generator,
-                    }
+                output = self.pipeline(**pipeline_params)
 
-                    if last_image is not None:
-                        pipeline_params["last_image"] = last_image
-
-                    if self.dwd:
-                        pipeline_params["output"] = list(_PI_H3_DWD_OUTPUT_KEYS)
-
-                    output = self.pipeline(**pipeline_params)
-
-                    results.append(self._encode_video_audio_to_mp4(output, params["frame_rate"]))
-            finally:
-                if saved_audio_shift is not None:
-                    self.pipeline.audio_scheduler.set_shift(saved_audio_shift)
-
-                if saved_video_shift is not None:
-                    self.pipeline.scheduler.set_shift(saved_video_shift)
+                results.append(self._encode_video_audio_to_mp4(output, params["frame_rate"]))
 
             return results
 
@@ -155,26 +153,23 @@ class PiH3ImageToVideoTaskAction(ImageToVideoTaskAction):
 
         return num_frames
 
-    def _apply_scheduler_shift(self, scheduler_attr: str, shift: float) -> Optional[float]:
-        scheduler = getattr(self.pipeline, scheduler_attr, None)
-
-        if scheduler is not None and hasattr(scheduler, "set_shift"):
-            previous = getattr(scheduler.config, "shift", None) if hasattr(scheduler, "config") else None
-            scheduler.set_shift(shift)
-
-            return previous
-
-        return None
-
     def _encode_video_audio_to_mp4(self, output: Any, fps: int) -> VideoStreamResource:
+        """Mux pi-H3's joint video+audio output into an in-memory mp4.
+
+        DWD adapters return `dwd_pixels` in the color-encoder's latent space —
+        decode through `RGBColorEncoder` and remap `[-1, 1] -> [0, 1]` before
+        passing on. Non-DWD adapters return `videos` already in `[0, 1]`.
+        Both paths land in the same mp4 writer the rest of the stack uses.
+        """
         import av
 
-        if self.dwd:
-            video = self._extract_tensor(output, ("dwd_pixels",))
-        else:
-            video = self._extract_tensor(output, ("frames", "videos", "video", "images"))
-
         audio = self._extract_tensor(output, ("audios", "audio"))
+
+        if self.dwd:
+            dwd_pixels = self._extract_tensor(output, ("dwd_pixels",))
+            video = self.color_encoder.decode(dwd_pixels).add_(1).mul_(0.5)
+        else:
+            video = self._extract_tensor(output, ("videos", "frames", "video", "images"))
 
         frames_np = self._video_tensor_to_uint8(video)
         audio_np, audio_rate = self._audio_tensor_to_numpy(output, audio)
@@ -259,9 +254,6 @@ class PiH3ImageToVideoTaskAction(ImageToVideoTaskAction):
             array = np.asarray(tensor)
 
         if array.dtype != np.uint8:
-            if array.min() < 0:
-                array = (array + 1.0) / 2.0
-
             array = np.clip(array, 0.0, 1.0)
             array = (array * 255.0).round().astype(np.uint8)
 
@@ -276,6 +268,9 @@ class PiH3ImageToVideoTaskAction(ImageToVideoTaskAction):
             return None, 32000
 
         sample_rate = 32000
+
+        # DWD adapters expose `sampling_rate` as a sibling key; prefer that over
+        # the inherited H3 default when the pipeline reports one.
         rate_from_output = None
 
         if isinstance(output, dict):
@@ -316,15 +311,17 @@ class PiH3ImageToVideoTaskAction(ImageToVideoTaskAction):
 class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
     """Driver for pi-H3 image-to-video: distilled MiniMax-H3 at 2 or 4 steps.
 
-    Uses the same LakonLab adapter machinery as the text-to-video driver but
-    pins the pipeline workflow to `fl2va`, so the first-frame (and optional
-    last-frame) keyframe transformer partition is fetched.
+    Shares the LakonLab Blocks pipeline with the text-to-video driver — routing
+    between t2v, i2v, and fl2v happens at call time inside the pipeline based
+    on which inputs are passed (`image=` / `last_image=`), not via a workflow
+    kwarg.
     """
 
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
         self.pipeline: Optional[Any] = None
+        self.color_encoder: Optional[Any] = None
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
@@ -364,12 +361,13 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
 
     async def _load_model(self) -> None:
         self.device = self._resolve_device(self.config.device)
-        self.pipeline = await self._load_pipeline()
+        self.pipeline, self.color_encoder = await self._load_pipeline()
 
     async def _unload_model(self) -> None:
         self.pipeline = None
+        self.color_encoder = None
 
-    async def _load_pipeline(self) -> Any:
+    async def _load_pipeline(self) -> Tuple[Any, Optional[Any]]:
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
         text_encoder_config = self.config.text_encoder
@@ -380,43 +378,70 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
             text_encoder = None
 
         distillation_path = await self._provision_model(self.config.distillation.model)
-        adapter_subfolder = self._adapter_subfolder()
+        adapter_subfolder = f"pi_h3_{self.config.step_count}step{'_dwd_adapter' if self.config.dwd else '_adapter'}"
 
-        def _load() -> Any:
-            from diffusers import ComponentsManager, ModularPipeline
+        def _load() -> Tuple[Any, Optional[Any]]:
+            from diffusers import ComponentsManager
+            from lakonlab.models.architectures import RGBColorEncoder
+            from lakonlab.models.diffusions.schedulers import FlowEulerODEScheduler
             from lakonlab.pipelines.utils import load_lakonlab_adapter
             import torch
 
-            # Pin the first/last-frame workflow (`fl2va`) so only the keyframe
-            # transformer partition is fetched and the pipeline's declared
-            # signature is image-to-video (optionally with a last-frame keyframe).
+            # LakonLab routes t2v / i2v / fl2v inside the same Blocks pipeline;
+            # the ctor picks DWD vs stock VAE decode, routing is by call-time
+            # kwargs (`image=` / `last_image=`), and ComponentsManager drives
+            # placement when cpu_offload is on.
             manager = ComponentsManager() if self.config.cpu_offload else None
-            # MiniMax-H3 ships the transformer as custom code on the Hub, so
-            # `trust_remote_code=True` is required on both the pipeline wiring
-            # and the component load — without it `pipeline.transformer` ends
-            # up None and the adapter attach fails downstream.
-            pipeline = ModularPipeline.from_pretrained(
-                model_path,
-                workflow="fl2va",
-                components_manager=manager,
+            pipeline = self._build_lakonlab_pipeline(model_path, manager)
+
+            if not self.config.dwd:
+                # The spec swap must run before `load_components` so the
+                # swapped VAE class is what gets instantiated.
+                from lakonlab.models.architectures.diffusers.minimax_h3 import AutoencoderKLMiniMaxH3
+
+                vae_spec = pipeline.get_component_spec("vae")
+                vae_spec.type_hint = AutoencoderKLMiniMaxH3
+                pipeline.update_components(vae=vae_spec.load(dtype=torch.float16))
+
+            if text_encoder is not None:
+                pipeline.update_components(text_encoder=text_encoder)
+
+            component_names = _PI_H3_DWD_COMPONENT_NAMES if self.config.dwd else _PI_H3_VAE_COMPONENT_NAMES
+            # `trust_remote_code=True` is required — MiniMax-H3 ships the
+            # transformer as custom code on the Hub; without it `transformer`
+            # ends up None and the adapter attach fails downstream.
+            pipeline.load_components(
+                names=list(component_names),
+                dtype=torch.bfloat16,
                 trust_remote_code=True,
             )
 
-            components: Dict[str, Any] = {}
-
-            if text_encoder is not None:
-                components["text_encoder"] = text_encoder
-
-            if components:
-                pipeline.update_components(**components)
-
-            pipeline.load_components(dtype=torch.bfloat16, trust_remote_code=True)
+            if not self.config.dwd:
+                pipeline.vae.decode_tile_batch_size = _PI_H3_VAE_DECODE_TILE_BATCH_SIZE
 
             logging.info(
                 f"Component '{self.id}': loading pi-H3 distillation adapter '{adapter_subfolder}' from {distillation_path}"
             )
-
             load_lakonlab_adapter(pipeline, distillation_path, subfolder=adapter_subfolder)
+
+            # The piH3 reference pins both schedulers to num_train_timesteps=1
+            # with step-count-dependent max_raw_t; the trained adapters assume
+            # this schedule and ignore the diffusers default.
+            max_raw_t = _PI_H3_MAX_RAW_T[self.config.step_count]
+            pipeline.update_components(
+                scheduler=FlowEulerODEScheduler(
+                    num_train_timesteps=1,
+                    shift=_PI_H3_VIDEO_SHIFT,
+                    max_raw_t=max_raw_t,
+                    final_step_size_scale=0.6,
+                ),
+                audio_scheduler=FlowEulerODEScheduler(
+                    num_train_timesteps=1,
+                    shift=_PI_H3_AUDIO_SHIFT,
+                    max_raw_t=max_raw_t,
+                    final_step_size_scale=0.6,
+                ),
+            )
 
             if self.config.quantization is not None:
                 self._apply_fp8_quantization(pipeline)
@@ -429,7 +454,16 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
             else:
                 pipeline = pipeline.to(self.device)
 
-            return pipeline
+            color_encoder: Optional[Any] = None
+
+            if self.config.dwd:
+                color_encoder = RGBColorEncoder(
+                    use_affine_norm=True,
+                    mean=_PI_H3_RGB_DECODE_MEAN,
+                    std=_PI_H3_RGB_DECODE_STD,
+                ).to(self.device)
+
+            return pipeline, color_encoder
 
         return await self._run_in_executor(_load)
 
@@ -446,9 +480,12 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
 
             logging.info(f"Component '{self.id}': loading {Qwen3VLForConditionalGeneration.__name__} from {model_path}")
 
-            params: Dict[str, Any] = {
-                "torch_dtype": self._resolve_torch_dtype(text_encoder_config.precision) if text_encoder_config.precision is not None else torch.bfloat16,
-            }
+            params: Dict[str, Any] = {}
+
+            if text_encoder_config.precision is not None:
+                params["torch_dtype"] = self._resolve_torch_dtype(text_encoder_config.precision)
+            else:
+                params["torch_dtype"] = torch.bfloat16
 
             if text_encoder_config.low_cpu_mem_usage:
                 params["low_cpu_mem_usage"] = True
@@ -457,27 +494,32 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
 
         return await self._run_in_executor(_load)
 
-    def _adapter_subfolder(self) -> str:
-        suffix = "_dwd_adapter" if self.config.dwd else "_adapter"
-
-        return f"pi_h3_{self.config.step_count}step{suffix}"
-
-    def _apply_fp8_quantization(self, pipeline: Any) -> None:
-        from lakonlab.ops import quantize_frozen_linears
-
-        logging.info(f"Component '{self.id}': applying LakonLab FP8 quantization to frozen linears")
-
-        quantize_frozen_linears(pipeline.transformer, exclude_keys=list(_PI_H3_TRANSFORMER_FP8_EXCLUDE))
-
-        text_encoder = getattr(pipeline, "text_encoder", None)
-
-        if text_encoder is not None:
-            quantize_frozen_linears(text_encoder, exclude_keys=list(_PI_H3_TEXT_ENCODER_FP8_EXCLUDE))
-
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await PiH3ImageToVideoTaskAction(
             action,
             self.pipeline,
             self.config.dwd,
             self.config.step_count,
+            self.color_encoder,
         ).run(context)
+
+    def _build_lakonlab_pipeline(self, model_path: str, manager: Optional[Any]) -> Any:
+        if self.config.dwd:
+            from lakonlab.pipelines.pipeline_minimax_h3 import MiniMaxH3DWDBlocks
+            return MiniMaxH3DWDBlocks().init_pipeline(model_path, components_manager=manager)
+
+        from lakonlab.pipelines.pipeline_minimax_h3 import MiniMaxH3BlocksMod
+        return MiniMaxH3BlocksMod().init_pipeline(model_path, components_manager=manager)
+
+    def _apply_fp8_quantization(self, pipeline: Any) -> None:
+        from lakonlab.ops import quantize_frozen_linears
+
+        logging.info(f"Component '{self.id}': applying LakonLab FP8 quantization to frozen linears")
+
+        exclude = _PI_H3_DWD_TRANSFORMER_FP8_EXCLUDE if self.config.dwd else _PI_H3_VAE_TRANSFORMER_FP8_EXCLUDE
+        quantize_frozen_linears(pipeline.transformer, exclude_keys=list(exclude))
+
+        text_encoder = getattr(pipeline, "text_encoder", None)
+
+        if text_encoder is not None:
+            quantize_frozen_linears(text_encoder, exclude_keys=list(_PI_H3_TEXT_ENCODER_FP8_EXCLUDE))

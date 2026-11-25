@@ -1,0 +1,78 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: pi-H3 Text-to-Video
+  description: |
+    Generate a short clip with native stereo audio from a text prompt using
+    pi-H3 — a 2/4-step distillation of MiniMax-H3 by LakonLab that pairs
+    pi-Flow v2 few-step sampling with DWD (Decoding Without a Decoder) to
+    skip the video VAE on the final step.
+  job:
+    input: ${input}
+    output: ${output as video/mp4}
+
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  # pi-H3 ships as LakonLab adapters on top of the pruned MiniMax-H3 base.
+  # The driver loads the base pipeline (workflow t2va), then splices in the
+  # DWD head and distilled weights from `adapter_repository`.
+  family: pi-h3
+  device: cuda
+  # The base is the pruned MiniMax-H3 (~40% smaller than the full 70 GB release)
+  # distributed by multimodalart specifically for the pi-H3 recipe. Override
+  # `model:` to point at a fork or a local path.
+  # model:
+  #   provider: huggingface
+  #   repository: multimodalart/MiniMax-H3-Pruned
+  # Adapter selection:
+  #   step_count: 2 — fastest; slightly weaker structural coherence
+  #   step_count: 4 — recommended default; closer to the 50-step base
+  #   dwd: true     — predicts pixels directly on the last step (skips VAE)
+  #   dwd: false    — standard path via the video VAE (slower, more familiar)
+  step_count: 4
+  dwd: true
+  # Hugging Face repo hosting the pi-H3 adapters. The driver auto-picks the
+  # subfolder (`pi_h3_<step_count>step[_dwd]_adapter`) from the fields above.
+  adapter_repository: Lakonik/pi-H3
+  # LakonLab FP8 weight quantization on the Omni-Transformer frozen linears.
+  # Matches the upstream reference run on Blackwell-class GPUs (B200 / H200);
+  # consumer-class 24 GB GPUs should start with `false` and `cpu_offload: true`.
+  fp8_quantize: false
+  # Offload submodules to CPU during generation to fit on single-GPU hosts
+  # (the Omni-Transformer alone is ~33B parameters). Disable when all VRAM is
+  # available for the active submodules.
+  cpu_offload: true
+  max_concurrent_count: 1
+  # pi-H3 needs LakonLab (>= 0.3) which pulls a recent diffusers (>= 0.36).
+  # Isolate the worker to keep it from shadowing the controller's install.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/pi-h3
+  action:
+    prompt: ${input.prompt}
+    # Short-side 768 is the model's default; 2K generation needs the
+    # separate H3-Regenerate-2K stage not wired up in this example.
+    width: ${input.width as integer | 1344}
+    height: ${input.height as integer | 768}
+    # Native output is 24 fps. The model was trained at this frame rate;
+    # changing frame_rate re-encodes the mp4 but does not resample frames.
+    frame_rate: ${input.frame_rate as integer | 24}
+    seed: ${input.seed as integer}
+    params:
+      # 24 fps × 4-15 s window → 96..360 frames. The driver snaps upward to
+      # the nearest 17*n+5 count the video VAE can decode (124..345).
+      num_frames: ${input.num_frames as integer | 128}
+      # Leave unset to keep the scheduler's defaults (video=12, audio=3).
+      # Override only when matching a specific recipe published by LakonLab.
+      # video_shift: 12.0
+      # audio_shift: 3.0

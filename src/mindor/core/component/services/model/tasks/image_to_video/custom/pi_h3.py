@@ -357,9 +357,8 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
         else:
             text_encoder = None
 
+        distillation_path = await self._provision_model(self.config.distillation.model)
         adapter_subfolder = self._adapter_subfolder()
-        adapter_repository = self.config.adapter_repository
-        fp8_quantize = self.config.fp8_quantize
 
         def _load() -> Any:
             from diffusers import ComponentsManager, ModularPipeline
@@ -387,11 +386,12 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
             pipeline.load_components(dtype=torch.bfloat16)
 
             logging.info(
-                f"Component '{self.id}': loading pi-H3 adapter '{adapter_subfolder}' from {adapter_repository}"
+                f"Component '{self.id}': loading pi-H3 distillation adapter '{adapter_subfolder}' from {distillation_path}"
             )
-            load_lakonlab_adapter(pipeline, adapter_repository, subfolder=adapter_subfolder)
 
-            if fp8_quantize:
+            load_lakonlab_adapter(pipeline, distillation_path, subfolder=adapter_subfolder)
+
+            if self.config.quantization is not None:
                 self._apply_fp8_quantization(pipeline)
 
             if manager is not None:

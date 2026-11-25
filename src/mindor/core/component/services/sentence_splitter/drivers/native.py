@@ -164,7 +164,7 @@ class NativeSentenceSplitterAction(SentenceSplitterAction):
         return await self._run_in_executor(_create)
 
 @register_sentence_splitter_driver(SentenceSplitterDriverType.NATIVE)
-class NativeSentenceSplitterService(SentenceSplitterDriver):
+class NativeSentenceSplitterDriver(SentenceSplitterDriver):
     def __init__(self, id: str, config: SentenceSplitterComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

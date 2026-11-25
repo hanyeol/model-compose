@@ -782,7 +782,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         return f"scale={w}:{h}"
 
 @register_video_processor_driver(VideoProcessorDriverType.FFMPEG)
-class FFmpegVideoProcessorService(VideoProcessorDriver):
+class FFmpegVideoProcessorDriver(VideoProcessorDriver):
     def __init__(self, id: str, config: VideoProcessorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

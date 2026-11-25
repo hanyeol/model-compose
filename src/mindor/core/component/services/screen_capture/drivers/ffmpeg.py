@@ -516,7 +516,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
         return audio_format
 
 @register_screen_capture_driver(ScreenCaptureDriverType.FFMPEG)
-class FFmpegScreenCaptureService(ScreenCaptureDriver):
+class FFmpegScreenCaptureDriver(ScreenCaptureDriver):
     def __init__(self, id: str, config: ScreenCaptureComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

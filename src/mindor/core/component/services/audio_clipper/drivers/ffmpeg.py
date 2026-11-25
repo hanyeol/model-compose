@@ -342,7 +342,7 @@ class FFmpegAudioClipperAction(AudioClipperAction):
         return (await probe_audio(input_path, ("format",)))[0]
 
 @register_audio_clipper_driver(AudioClipperDriverType.FFMPEG)
-class FFmpegAudioClipperService(AudioClipperDriver):
+class FFmpegAudioClipperDriver(AudioClipperDriver):
     def __init__(self, id: str, config: AudioClipperComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

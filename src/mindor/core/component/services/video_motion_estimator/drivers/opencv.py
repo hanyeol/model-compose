@@ -440,7 +440,7 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
         return float(np.median(displacements))
 
 @register_video_motion_estimator_driver(VideoMotionEstimatorDriverType.OPENCV)
-class OpenCvVideoMotionEstimatorService(VideoMotionEstimatorDriver):
+class OpenCvVideoMotionEstimatorDriver(VideoMotionEstimatorDriver):
     def __init__(self, id: str, config: VideoMotionEstimatorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

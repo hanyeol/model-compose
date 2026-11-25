@@ -194,7 +194,7 @@ class ExiftoolMediaInspectorAction(MediaInspectorAction):
         return result
 
 @register_media_inspector_driver(MediaInspectorDriverType.EXIFTOOL)
-class ExiftoolMediaInspectorService(MediaInspectorDriver):
+class ExiftoolMediaInspectorDriver(MediaInspectorDriver):
     def __init__(self, id: str, config: MediaInspectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

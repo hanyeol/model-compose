@@ -205,7 +205,7 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
         return bands
 
 @register_audio_feature_extractor_driver(AudioFeatureExtractorDriverType.NATIVE)
-class NativeAudioFeatureExtractorService(AudioFeatureExtractorDriver):
+class NativeAudioFeatureExtractorDriver(AudioFeatureExtractorDriver):
     def __init__(self, id: str, config: AudioFeatureExtractorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

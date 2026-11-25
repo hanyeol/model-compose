@@ -225,7 +225,7 @@ class PlaywrightBrowserSession(WebBrowserSession):
         raise ValueError(f"Unsupported extract_mode: '{extract_mode}'.")
 
 @register_web_browser_driver(WebBrowserDriverType.PLAYWRIGHT)
-class PlaywrightWebBrowserService(WebBrowserDriver):
+class PlaywrightWebBrowserDriver(WebBrowserDriver):
     config: PlaywrightWebBrowserComponentConfig
 
     def __init__(self, id: str, config: PlaywrightWebBrowserComponentConfig, daemon: bool):

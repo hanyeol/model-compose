@@ -84,7 +84,7 @@ class LocalSubtitleLoaderAction(SubtitleLoaderAction):
         return spooled_path, True
 
 @register_subtitle_loader_driver(SubtitleLoaderDriverType.LOCAL)
-class LocalSubtitleLoaderService(SubtitleLoaderDriver):
+class LocalSubtitleLoaderDriver(SubtitleLoaderDriver):
     def __init__(self, id: str, config: SubtitleLoaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

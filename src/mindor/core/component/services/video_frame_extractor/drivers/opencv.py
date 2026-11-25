@@ -223,7 +223,7 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
             capture.release()
 
 @register_video_frame_extractor_driver(VideoFrameExtractorDriverType.OPENCV)
-class OpenCVVideoFrameExtractorService(VideoFrameExtractorDriver):
+class OpenCVVideoFrameExtractorDriver(VideoFrameExtractorDriver):
     def __init__(self, id: str, config: VideoFrameExtractorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

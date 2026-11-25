@@ -905,7 +905,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         return f"scale={w}:{h}"
 
 @register_video_mixer_driver(VideoMixerDriverType.FFMPEG)
-class FFmpegVideoMixerService(VideoMixerDriver):
+class FFmpegVideoMixerDriver(VideoMixerDriver):
     def __init__(self, id: str, config: VideoMixerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

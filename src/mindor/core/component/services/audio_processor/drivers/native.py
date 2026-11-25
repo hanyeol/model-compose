@@ -991,7 +991,7 @@ class NativeAudioProcessorAction(AudioProcessorAction):
         return librosa.istft(new_stft, hop_length=hop_length, n_fft=n_fft, length=waveform.shape[-1]).astype(np.float32)
 
 @register_audio_processor_driver(AudioProcessorDriverType.NATIVE)
-class NativeAudioProcessorService(AudioProcessorDriver):
+class NativeAudioProcessorDriver(AudioProcessorDriver):
     def __init__(self, id: str, config: AudioProcessorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

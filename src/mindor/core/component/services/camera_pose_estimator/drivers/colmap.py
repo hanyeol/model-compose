@@ -404,7 +404,7 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
         return trimesh.load_path(vertices[edges])
 
 @register_camera_pose_estimator_driver(CameraPoseEstimatorDriverType.COLMAP)
-class ColmapCameraPoseEstimatorService(CameraPoseEstimatorDriver):
+class ColmapCameraPoseEstimatorDriver(CameraPoseEstimatorDriver):
     def __init__(self, id: str, config: CameraPoseEstimatorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

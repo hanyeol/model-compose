@@ -200,7 +200,7 @@ class VerovioMusicScoreRendererAction(MusicScoreRendererAction):
 
 
 @register_music_score_renderer_driver(MusicScoreRendererDriverType.VEROVIO)
-class VerovioMusicScoreRendererService(MusicScoreRendererDriver):
+class VerovioMusicScoreRendererDriver(MusicScoreRendererDriver):
     def __init__(self, id: str, config: MusicScoreRendererComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

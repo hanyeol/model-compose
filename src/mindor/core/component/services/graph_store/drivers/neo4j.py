@@ -23,13 +23,15 @@ class Neo4jQueryBuilder:
     def verify_identifier(value: str, field: str) -> str:
         if not _IDENTIFIER_PATTERN.match(value):
             raise ValueError(f"Invalid {field} identifier: '{value}'")
+
         return value
 
     @staticmethod
     def build_create_node(label: str, properties: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
         label = Neo4jQueryBuilder.verify_identifier(label, "label")
-        prop_str = ", ".join(f"{k}: ${k}" for k in properties.keys())
-        cypher = f"CREATE (n:{label} {{{prop_str}}}) RETURN elementId(n) AS id"
+        property = ", ".join(f"{k}: ${k}" for k in properties.keys())
+        cypher = f"CREATE (n:{label} {{{property}}}) RETURN elementId(n) AS id"
+
         return cypher, properties
 
     @staticmethod
@@ -39,8 +41,8 @@ class Neo4jQueryBuilder:
         params: Dict[str, Any] = { "from_id": from_id, "to_id": to_id, **prop_params }
 
         if properties:
-            prop_str = ", ".join(f"{k}: $prop_{k}" for k in properties.keys())
-            cypher = f"MATCH (a), (b) WHERE elementId(a) = $from_id AND elementId(b) = $to_id CREATE (a)-[r:{rel_type} {{{prop_str}}}]->(b) RETURN elementId(r) AS id"
+            property = ", ".join(f"{k}: $prop_{k}" for k in properties.keys())
+            cypher = f"MATCH (a), (b) WHERE elementId(a) = $from_id AND elementId(b) = $to_id CREATE (a)-[r:{rel_type} {{{property}}}]->(b) RETURN elementId(r) AS id"
         else:
             cypher = f"MATCH (a), (b) WHERE elementId(a) = $from_id AND elementId(b) = $to_id CREATE (a)-[r:{rel_type}]->(b) RETURN elementId(r) AS id"
 
@@ -53,13 +55,16 @@ class Neo4jQueryBuilder:
 
         if properties:
             set_parts = []
+
             for key, value in properties.items():
                 params[f"prop_{key}"] = value
                 set_parts.append(f"n.{key} = $prop_{key}")
+
             clauses.append("SET " + ", ".join(set_parts))
 
         if labels:
             label_list = labels if isinstance(labels, list) else [labels]
+
             for label in label_list:
                 Neo4jQueryBuilder.verify_identifier(label, "label")
                 clauses.append(f"SET n:{label}")
@@ -68,27 +73,33 @@ class Neo4jQueryBuilder:
             return None
 
         cypher = f"MATCH (n) WHERE elementId(n) = $id {' '.join(clauses)} RETURN n"
+
         return cypher, params
 
     @staticmethod
     def build_update_relationship(relationship_id: str, properties: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
         params: Dict[str, Any] = { "id": relationship_id }
         set_parts = []
+
         for key, value in properties.items():
             params[f"prop_{key}"] = value
             set_parts.append(f"r.{key} = $prop_{key}")
+
         cypher = f"MATCH ()-[r]->() WHERE elementId(r) = $id SET {', '.join(set_parts)} RETURN r"
+
         return cypher, params
 
     @staticmethod
     def build_delete_node(node_id: str, detach: bool) -> Tuple[str, Dict[str, Any]]:
         delete_clause = "DETACH DELETE n" if detach else "DELETE n"
         cypher = f"MATCH (n) WHERE elementId(n) = $id {delete_clause}"
+
         return cypher, { "id": node_id }
 
     @staticmethod
     def build_delete_relationship(relationship_id: str) -> Tuple[str, Dict[str, Any]]:
         cypher = "MATCH ()-[r]->() WHERE elementId(r) = $id DELETE r"
+
         return cypher, { "id": relationship_id }
 
     @staticmethod
@@ -103,6 +114,7 @@ class Neo4jQueryBuilder:
         if relationship_types:
             for rt in relationship_types:
                 Neo4jQueryBuilder.verify_identifier(rt, "relationship type")
+
             rel_filter = ":" + "|".join(relationship_types)
 
         if direction == "out":
@@ -113,9 +125,11 @@ class Neo4jQueryBuilder:
             path_pattern = f"(start)-[r{rel_filter}*1..{max_depth}]-(end)"
 
         label_filter = ""
+
         if node_labels:
             for nl in node_labels:
                 Neo4jQueryBuilder.verify_identifier(nl, "node label")
+
             label_filter = " AND (" + " OR ".join(f"ANY(l IN labels(end) WHERE l = '{label}')" for label in node_labels) + ")"
 
         cypher = f"MATCH p = {path_pattern} WHERE elementId(start) = $start_id{label_filter} RETURN end AS node, length(p) AS depth, [rel IN relationships(p) | type(rel)] AS relationship_types"
@@ -173,8 +187,10 @@ class Neo4jGraphStoreAction(GraphStoreAction):
                 )
                 result = await session.run(cypher, parameters=cypher_params)
                 record = await result.single()
+
                 if record:
                     node_ids.append(record["id"])
+
                 created_nodes += 1
 
             for relationship in relationships or []:
@@ -186,8 +202,10 @@ class Neo4jGraphStoreAction(GraphStoreAction):
                 )
                 result = await session.run(cypher, parameters=cypher_params)
                 record = await result.single()
+
                 if record:
                     relationship_ids.append(record["id"])
+
                 created_relationships += 1
 
         return {
@@ -279,7 +297,7 @@ class Neo4jGraphStoreAction(GraphStoreAction):
         return records
 
 @register_graph_store_driver(GraphStoreDriverType.NEO4J)
-class Neo4jGraphStoreService(GraphStoreDriver):
+class Neo4jGraphStoreDriver(GraphStoreDriver):
     def __init__(self, id: str, config: GraphStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

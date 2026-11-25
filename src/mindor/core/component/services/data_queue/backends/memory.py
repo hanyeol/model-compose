@@ -24,7 +24,7 @@ class MemoryDataQueueDequeueIterator(StreamIterator):
             yield await self.queue.get()
 
 @register_data_queue_driver(DataQueueDriverType.MEMORY)
-class MemoryDataQueueService(DataQueueDriver):
+class MemoryDataQueueDriver(DataQueueDriver):
     def __init__(self, id: str, config: MemoryDataQueueComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -85,7 +85,7 @@ class SshShellAction(ShellAction):
             yield line
 
 @register_shell_driver(ShellDriverType.SSH)
-class SshShellService(ShellDriver):
+class SshShellDriver(ShellDriver):
     config: SshShellComponentConfig
 
     def __init__(self, id: str, config: SshShellComponentConfig, daemon: bool):

@@ -159,7 +159,7 @@ class FFplayVideoPlaybackAction(VideoPlaybackAction):
             raise ValueError(f"Invalid window_size {size!r}; expected 'WIDTHxHEIGHT' (e.g. '1280x720')") from e
 
 @register_video_playback_driver(VideoPlaybackDriverType.FFPLAY)
-class FFplayVideoPlaybackService(VideoPlaybackDriver):
+class FFplayVideoPlaybackDriver(VideoPlaybackDriver):
     def __init__(self, id: str, config: VideoPlaybackComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -85,7 +85,7 @@ class NativeModel3DLoaderAction(Model3DLoaderAction):
             ) from error
 
 @register_model_3d_loader_driver(Model3DLoaderDriverType.NATIVE)
-class NativeModel3DLoaderService(Model3DLoaderDriver):
+class NativeModel3DLoaderDriver(Model3DLoaderDriver):
     def __init__(self, id: str, config: Model3DLoaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

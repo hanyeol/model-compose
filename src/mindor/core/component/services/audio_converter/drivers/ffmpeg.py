@@ -224,7 +224,7 @@ class FFmpegAudioConverterAction(AudioConverterAction):
         return get_audio_codec_for_format(format)
 
 @register_audio_converter_driver(AudioConverterDriverType.FFMPEG)
-class FFmpegAudioConverterService(AudioConverterDriver):
+class FFmpegAudioConverterDriver(AudioConverterDriver):
     def __init__(self, id: str, config: AudioConverterComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

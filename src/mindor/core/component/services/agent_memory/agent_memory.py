@@ -305,4 +305,9 @@ class AgentMemoryComponent(ComponentService):
         await self._storage.close()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await AgentMemoryAction(action, self.config.window, self.config.summary, self._summary_component).run(context, self._buffer, self._storage)
+        return await AgentMemoryAction(
+            action,
+            self.config.window,
+            self.config.summary,
+            self._summary_component
+        ).run(context, self._buffer, self._storage)

@@ -231,7 +231,7 @@ class YtdlpSubtitleLoaderAction(SubtitleLoaderAction):
         return option
 
 @register_subtitle_loader_driver(SubtitleLoaderDriverType.YTDLP)
-class YtdlpSubtitleLoaderService(SubtitleLoaderDriver):
+class YtdlpSubtitleLoaderDriver(SubtitleLoaderDriver):
     def __init__(self, id: str, config: SubtitleLoaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

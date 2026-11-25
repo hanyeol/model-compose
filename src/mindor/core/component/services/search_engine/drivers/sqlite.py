@@ -254,7 +254,7 @@ class SQLiteSearchEngineAction(SearchEngineAction):
         return meta
 
 @register_search_engine_driver(SearchEngineDriverType.SQLITE)
-class SQLiteSearchEngineService(SearchEngineDriver):
+class SQLiteSearchEngineDriver(SearchEngineDriver):
     def __init__(self, id: str, config: SQLiteSearchEngineComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

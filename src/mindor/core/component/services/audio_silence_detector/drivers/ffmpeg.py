@@ -128,7 +128,7 @@ class FFmpegAudioSilenceDetectorAction(AudioSilenceDetectorAction):
         return regions
 
 @register_audio_silence_detector_driver(AudioSilenceDetectorDriverType.FFMPEG)
-class FFmpegAudioSilenceDetectorService(AudioSilenceDetectorDriver):
+class FFmpegAudioSilenceDetectorDriver(AudioSilenceDetectorDriver):
     def __init__(self, id: str, config: AudioSilenceDetectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

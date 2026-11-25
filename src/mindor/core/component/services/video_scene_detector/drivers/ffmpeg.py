@@ -256,7 +256,7 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
             cleanup()
 
 @register_video_scene_detector_driver(VideoSceneDetectorDriverType.FFMPEG)
-class FFmpegVideoSceneDetectorService(VideoSceneDetectorDriver):
+class FFmpegVideoSceneDetectorDriver(VideoSceneDetectorDriver):
     def __init__(self, id: str, config: VideoSceneDetectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

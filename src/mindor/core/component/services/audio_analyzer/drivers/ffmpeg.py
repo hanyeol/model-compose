@@ -421,7 +421,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         }
 
 @register_audio_analyzer_driver(AudioAnalyzerDriverType.FFMPEG)
-class FFmpegAudioAnalyzerService(AudioAnalyzerDriver):
+class FFmpegAudioAnalyzerDriver(AudioAnalyzerDriver):
     def __init__(self, id: str, config: AudioAnalyzerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -188,7 +188,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         return f"{summary}; page reported {len(errors)} error(s):\n" + "\n".join(errors[-limit:])
 
 @register_html_frame_renderer_driver(HtmlFrameRendererDriverType.PLAYWRIGHT)
-class PlaywrightHtmlFrameRendererService(HtmlFrameRendererDriver):
+class PlaywrightHtmlFrameRendererDriver(HtmlFrameRendererDriver):
     config: PlaywrightHtmlFrameRendererComponentConfig
 
     def __init__(self, id: str, config: PlaywrightHtmlFrameRendererComponentConfig, daemon: bool):

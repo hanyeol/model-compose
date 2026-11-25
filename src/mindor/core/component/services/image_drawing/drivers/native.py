@@ -333,7 +333,7 @@ class NativeImageDrawingAction(ImageDrawingAction):
         return False
 
 @register_image_drawing_driver(ImageDrawingDriverType.NATIVE)
-class NativeImageDrawingService(ImageDrawingDriver):
+class NativeImageDrawingDriver(ImageDrawingDriver):
     def __init__(self, id: str, config: ImageDrawingComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

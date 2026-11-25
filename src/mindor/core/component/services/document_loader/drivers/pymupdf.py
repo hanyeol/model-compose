@@ -186,7 +186,7 @@ class PymupdfDocumentLoaderAction(DocumentLoaderAction):
         return indices
 
 @register_document_loader_driver(DocumentLoaderDriverType.PYMUPDF)
-class PymupdfDocumentLoaderService(DocumentLoaderDriver):
+class PymupdfDocumentLoaderDriver(DocumentLoaderDriver):
     def __init__(self, id: str, config: DocumentLoaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

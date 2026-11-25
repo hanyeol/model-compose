@@ -53,7 +53,7 @@ class PngquantImageCompressorAction(ImageCompressorAction):
         return f"{min_quality if min_quality is not None else 0}-{max_quality if max_quality is not None else 100}"
 
 @register_image_compressor_driver(ImageCompressorDriverType.PNGQUANT)
-class PngquantImageCompressorService(ImageCompressorDriver):
+class PngquantImageCompressorDriver(ImageCompressorDriver):
     def __init__(self, id: str, config: ImageCompressorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

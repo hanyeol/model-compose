@@ -559,7 +559,7 @@ class NativeImageAnalyzerAction(ImageAnalyzerAction):
         return await self._run_in_executor(_analyze_color_variety)
 
 @register_image_analyzer_driver(ImageAnalyzerDriverType.NATIVE)
-class NativeImageAnalyzerService(ImageAnalyzerDriver):
+class NativeImageAnalyzerDriver(ImageAnalyzerDriver):
     def __init__(self, id: str, config: ImageAnalyzerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

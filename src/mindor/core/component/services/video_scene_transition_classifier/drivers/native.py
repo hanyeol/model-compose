@@ -996,7 +996,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         return np.asarray(frame.convert("L"), dtype=np.float32)
 
 @register_video_scene_transition_classifier_driver(VideoSceneTransitionClassifierDriverType.NATIVE)
-class NativeVideoSceneTransitionClassifierService(VideoSceneTransitionClassifierDriver):
+class NativeVideoSceneTransitionClassifierDriver(VideoSceneTransitionClassifierDriver):
     def __init__(self, id: str, config: VideoSceneTransitionClassifierComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

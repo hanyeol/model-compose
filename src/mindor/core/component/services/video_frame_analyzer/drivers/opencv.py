@@ -736,7 +736,7 @@ class OpenCvVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
         return "#{:02x}{:02x}{:02x}".format(int(bgr_pixel[2]), int(bgr_pixel[1]), int(bgr_pixel[0]))
 
 @register_video_frame_analyzer_driver(VideoFrameAnalyzerDriverType.OPENCV)
-class OpenCvVideoFrameAnalyzerService(VideoFrameAnalyzerDriver):
+class OpenCvVideoFrameAnalyzerDriver(VideoFrameAnalyzerDriver):
     def __init__(self, id: str, config: VideoFrameAnalyzerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

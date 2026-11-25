@@ -538,7 +538,7 @@ class NativeMusicSegmentDetectorAction(MusicSegmentDetectorAction):
         return letters
 
 @register_music_segment_detector_driver(MusicSegmentDetectorDriverType.NATIVE)
-class NativeMusicSegmentDetectorService(MusicSegmentDetectorDriver):
+class NativeMusicSegmentDetectorDriver(MusicSegmentDetectorDriver):
     def __init__(self, id: str, config: MusicSegmentDetectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

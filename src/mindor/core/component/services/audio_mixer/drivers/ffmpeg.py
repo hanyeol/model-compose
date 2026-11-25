@@ -425,7 +425,7 @@ class FFmpegAudioMixerAction(AudioMixerAction):
         return get_audio_codec_for_format(format)
 
 @register_audio_mixer_driver(AudioMixerDriverType.FFMPEG)
-class FFmpegAudioMixerService(AudioMixerDriver):
+class FFmpegAudioMixerDriver(AudioMixerDriver):
     def __init__(self, id: str, config: AudioMixerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

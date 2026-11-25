@@ -223,7 +223,7 @@ class QdrantVectorStoreAction(VectorStoreAction):
         return { "affected_rows": 0 }
 
 @register_vector_store_driver(VectorStoreDriverType.QDRANT)
-class QdrantVectorStoreService(VectorStoreDriver):
+class QdrantVectorStoreDriver(VectorStoreDriver):
     def __init__(self, id: str, config: VectorStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

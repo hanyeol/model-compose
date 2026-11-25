@@ -297,7 +297,7 @@ class MilvusVectorStoreAction(VectorStoreAction):
         return params
 
 @register_vector_store_driver(VectorStoreDriverType.MILVUS)
-class MilvusVectorStoreService(VectorStoreDriver):
+class MilvusVectorStoreDriver(VectorStoreDriver):
     def __init__(self, id: str, config: VectorStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -288,7 +288,7 @@ class OpenCvVideoGradualSceneDetectorAction(VideoGradualSceneDetectorAction):
         return lo + max(0, start - 1), lo + end, lo + half
 
 @register_video_gradual_scene_detector_driver(VideoGradualSceneDetectorDriverType.OPENCV)
-class OpenCvVideoGradualSceneDetectorService(VideoGradualSceneDetectorDriver):
+class OpenCvVideoGradualSceneDetectorDriver(VideoGradualSceneDetectorDriver):
     def __init__(self, id: str, config: VideoGradualSceneDetectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

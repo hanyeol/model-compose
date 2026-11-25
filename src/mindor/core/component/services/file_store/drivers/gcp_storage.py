@@ -263,7 +263,7 @@ class GcpStorageFileStoreAction(FileStoreAction):
         return f"{host}/{self.location.bucket}/{quoted_object_name}"
 
 @register_file_store_driver(FileStoreDriverType.GCP_STORAGE)
-class GcpStorageFileStoreService(FileStoreDriver):
+class GcpStorageFileStoreDriver(FileStoreDriver):
     config: GcpStorageFileStoreComponentConfig
 
     def __init__(self, id: str, config: GcpStorageFileStoreComponentConfig, daemon: bool):

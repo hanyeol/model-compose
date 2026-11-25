@@ -222,7 +222,7 @@ class BlenderModel3DLoaderAction(Model3DLoaderAction):
         return spooled_path, True
 
 @register_model_3d_loader_driver(Model3DLoaderDriverType.BLENDER)
-class BlenderModel3DLoaderService(Model3DLoaderDriver):
+class BlenderModel3DLoaderDriver(Model3DLoaderDriver):
     config: BlenderModel3DLoaderComponentConfig
 
     def __init__(self, id: str, config: BlenderModel3DLoaderComponentConfig, daemon: bool):

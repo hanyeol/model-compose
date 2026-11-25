@@ -395,7 +395,7 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
             return ydl.prepare_filename(info)
 
 @register_media_downloader_driver(MediaDownloaderDriverType.YTDLP)
-class YtdlpMediaDownloaderService(MediaDownloaderDriver):
+class YtdlpMediaDownloaderDriver(MediaDownloaderDriver):
     def __init__(self, id: str, config: MediaDownloaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -690,7 +690,7 @@ class FFmpegVideoClipperAction(VideoClipperAction):
         return "mp4"
 
 @register_video_clipper_driver(VideoClipperDriverType.FFMPEG)
-class FFmpegVideoClipperService(VideoClipperDriver):
+class FFmpegVideoClipperDriver(VideoClipperDriver):
     def __init__(self, id: str, config: VideoClipperComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

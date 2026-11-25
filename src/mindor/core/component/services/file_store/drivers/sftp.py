@@ -322,7 +322,7 @@ class SftpFileStoreAction(FileStoreAction):
         return f"sftp://{username}@{host}{port}{path}"
 
 @register_file_store_driver(FileStoreDriverType.SFTP)
-class SftpFileStoreService(FileStoreDriver):
+class SftpFileStoreDriver(FileStoreDriver):
     config: SftpFileStoreComponentConfig
 
     def __init__(self, id: str, config: SftpFileStoreComponentConfig, daemon: bool):

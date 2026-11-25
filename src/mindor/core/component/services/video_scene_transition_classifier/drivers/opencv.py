@@ -342,7 +342,7 @@ class OpenCvVideoSceneTransitionClassifierAction(NativeVideoSceneTransitionClass
         return log_scale, rotation_degrees, dx, dy
 
 @register_video_scene_transition_classifier_driver(VideoSceneTransitionClassifierDriverType.OPENCV)
-class OpenCvVideoSceneTransitionClassifierService(VideoSceneTransitionClassifierDriver):
+class OpenCvVideoSceneTransitionClassifierDriver(VideoSceneTransitionClassifierDriver):
     def __init__(self, id: str, config: VideoSceneTransitionClassifierComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

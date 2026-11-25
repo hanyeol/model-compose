@@ -142,7 +142,7 @@ class NativeAudioSynchronizerAction(AudioSynchronizerAction):
         return float(offset), confidence
 
 @register_audio_synchronizer_driver(AudioSynchronizerDriverType.NATIVE)
-class NativeAudioSynchronizerService(AudioSynchronizerDriver):
+class NativeAudioSynchronizerDriver(AudioSynchronizerDriver):
     def __init__(self, id: str, config: AudioSynchronizerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

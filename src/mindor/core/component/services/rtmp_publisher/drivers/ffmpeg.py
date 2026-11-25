@@ -328,7 +328,7 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
                     pass
 
 @register_rtmp_publisher_driver(RtmpPublisherDriverType.FFMPEG)
-class FFmpegRtmpPublisherService(RtmpPublisherDriver):
+class FFmpegRtmpPublisherDriver(RtmpPublisherDriver):
     def __init__(self, id: str, config: RtmpPublisherComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

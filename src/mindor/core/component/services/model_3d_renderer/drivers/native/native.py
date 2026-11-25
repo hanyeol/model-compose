@@ -774,7 +774,7 @@ class NativeModel3DRendererAction(Model3DRendererAction):
             uniform.value = value
 
 @register_model_3d_renderer_driver(Model3DRendererDriverType.NATIVE)
-class NativeModel3DRendererService(Model3DRendererDriver):
+class NativeModel3DRendererDriver(Model3DRendererDriver):
     def __init__(self, id: str, config: Model3DRendererComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

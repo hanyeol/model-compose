@@ -224,7 +224,7 @@ class PineconeVectorStoreAction(VectorStoreAction):
         return await self._run_in_executor(_delete)
 
 @register_vector_store_driver(VectorStoreDriverType.PINECONE)
-class PineconeVectorStoreService(VectorStoreDriver):
+class PineconeVectorStoreDriver(VectorStoreDriver):
     def __init__(self, id: str, config: VectorStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

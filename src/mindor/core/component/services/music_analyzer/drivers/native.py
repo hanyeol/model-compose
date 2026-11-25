@@ -615,7 +615,7 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
         }
 
 @register_music_analyzer_driver(MusicAnalyzerDriverType.NATIVE)
-class NativeMusicAnalyzerService(MusicAnalyzerDriver):
+class NativeMusicAnalyzerDriver(MusicAnalyzerDriver):
     def __init__(self, id: str, config: MusicAnalyzerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

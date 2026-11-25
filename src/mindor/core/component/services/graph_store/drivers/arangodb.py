@@ -300,7 +300,7 @@ class ArangoDBGraphStoreAction(GraphStoreAction):
         return await self._run_in_executor(_traverse)
 
 @register_graph_store_driver(GraphStoreDriverType.ARANGODB)
-class ArangoDBGraphStoreService(GraphStoreDriver):
+class ArangoDBGraphStoreDriver(GraphStoreDriver):
     def __init__(self, id: str, config: GraphStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

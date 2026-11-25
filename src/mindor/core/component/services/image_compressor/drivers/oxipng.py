@@ -36,7 +36,7 @@ class OxipngImageCompressorAction(ImageCompressorAction):
         return await self._run_in_executor(_compress)
 
 @register_image_compressor_driver(ImageCompressorDriverType.OXIPNG)
-class OxipngImageCompressorService(ImageCompressorDriver):
+class OxipngImageCompressorDriver(ImageCompressorDriver):
     def __init__(self, id: str, config: ImageCompressorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -825,7 +825,7 @@ class LocalMusicScoreLoaderAction(MusicScoreLoaderAction):
 
 
 @register_music_score_loader_driver(MusicScoreLoaderDriverType.LOCAL)
-class LocalMusicScoreLoaderService(MusicScoreLoaderDriver):
+class LocalMusicScoreLoaderDriver(MusicScoreLoaderDriver):
     def __init__(self, id: str, config: MusicScoreLoaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

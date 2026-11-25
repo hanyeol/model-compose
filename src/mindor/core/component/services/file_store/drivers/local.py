@@ -255,7 +255,7 @@ class LocalFileStoreAction(FileStoreAction):
         return pathlib.Path(absolute_path).as_uri()
 
 @register_file_store_driver(FileStoreDriverType.LOCAL)
-class LocalFileStoreService(FileStoreDriver):
+class LocalFileStoreDriver(FileStoreDriver):
     def __init__(self, id: str, config: LocalFileStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

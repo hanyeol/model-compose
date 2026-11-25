@@ -138,7 +138,7 @@ class WorldMusicPitchCorrectorAction(MusicPitchCorrectorAction):
         return spectrogram[:, low] * (1.0 - frac) + spectrogram[:, high] * frac
 
 @register_music_pitch_corrector_driver(MusicPitchCorrectorDriverType.WORLD)
-class WorldMusicPitchCorrectorService(MusicPitchCorrectorDriver):
+class WorldMusicPitchCorrectorDriver(MusicPitchCorrectorDriver):
     def __init__(self, id: str, config: MusicPitchCorrectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

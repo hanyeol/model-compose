@@ -857,7 +857,7 @@ class NativeImageProcessorAction(ImageProcessorAction):
         return PILImage.merge("HSV", (h, s, v)).convert("RGB")
 
 @register_image_processor_driver(ImageProcessorDriverType.NATIVE)
-class NativeImageProcessorService(ImageProcessorDriver):
+class NativeImageProcessorDriver(ImageProcessorDriver):
     def __init__(self, id: str, config: ImageProcessorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

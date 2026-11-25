@@ -364,7 +364,7 @@ class NativeStreamingTranscriptCorrector(StreamingTranscriptCorrector):
         return best
 
 @register_transcript_corrector_driver(TranscriptCorrectorDriverType.NATIVE)
-class NativeTranscriptCorrectorService(TranscriptCorrectorDriver):
+class NativeTranscriptCorrectorDriver(TranscriptCorrectorDriver):
     def __init__(self, id: str, config: TranscriptCorrectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

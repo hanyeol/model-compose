@@ -231,7 +231,7 @@ class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
         return np.asarray(frame.convert("L"), dtype=np.float32)
 
 @register_video_frame_analyzer_driver(VideoFrameAnalyzerDriverType.NATIVE)
-class NativeVideoFrameAnalyzerService(VideoFrameAnalyzerDriver):
+class NativeVideoFrameAnalyzerDriver(VideoFrameAnalyzerDriver):
     def __init__(self, id: str, config: VideoFrameAnalyzerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

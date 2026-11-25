@@ -418,7 +418,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         return await load_image_from_bytes(buffer[start:end]), buffer[end:]
 
 @register_video_frame_extractor_driver(VideoFrameExtractorDriverType.FFMPEG)
-class FFmpegVideoFrameExtractorService(VideoFrameExtractorDriver):
+class FFmpegVideoFrameExtractorDriver(VideoFrameExtractorDriver):
     def __init__(self, id: str, config: VideoFrameExtractorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

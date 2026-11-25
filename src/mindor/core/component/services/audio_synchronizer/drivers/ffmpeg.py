@@ -35,7 +35,7 @@ class FFmpegAudioSynchronizerAction(NativeAudioSynchronizerAction):
                     pass
 
 @register_audio_synchronizer_driver(AudioSynchronizerDriverType.FFMPEG)
-class FFmpegAudioSynchronizerService(AudioSynchronizerDriver):
+class FFmpegAudioSynchronizerDriver(AudioSynchronizerDriver):
     def __init__(self, id: str, config: AudioSynchronizerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

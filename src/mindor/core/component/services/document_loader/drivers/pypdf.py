@@ -157,7 +157,7 @@ class PypdfDocumentLoaderAction(DocumentLoaderAction):
         return indices
 
 @register_document_loader_driver(DocumentLoaderDriverType.PYPDF)
-class PypdfDocumentLoaderService(DocumentLoaderDriver):
+class PypdfDocumentLoaderDriver(DocumentLoaderDriver):
     def __init__(self, id: str, config: DocumentLoaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

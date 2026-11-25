@@ -74,7 +74,7 @@ class NativeModel3DConverterAction(Model3DConverterAction):
             ) from error
 
 @register_model_3d_converter_driver(Model3DConverterDriverType.NATIVE)
-class NativeModel3DConverterService(Model3DConverterDriver):
+class NativeModel3DConverterDriver(Model3DConverterDriver):
     def __init__(self, id: str, config: Model3DConverterComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

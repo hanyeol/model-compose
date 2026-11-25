@@ -37,7 +37,7 @@ class FFmpegAudioFeatureExtractorAction(NativeAudioFeatureExtractorAction):
                     pass
 
 @register_audio_feature_extractor_driver(AudioFeatureExtractorDriverType.FFMPEG)
-class FFmpegAudioFeatureExtractorService(AudioFeatureExtractorDriver):
+class FFmpegAudioFeatureExtractorDriver(AudioFeatureExtractorDriver):
     def __init__(self, id: str, config: AudioFeatureExtractorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

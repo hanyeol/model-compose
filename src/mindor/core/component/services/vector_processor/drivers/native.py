@@ -218,7 +218,7 @@ class NativeVectorProcessorAction(VectorProcessorAction):
         raise ValueError(f"Unsupported ranking metric: {metric}")
 
 @register_vector_processor_driver(VectorProcessorDriverType.NATIVE)
-class NativeVectorProcessorService(VectorProcessorDriver):
+class NativeVectorProcessorDriver(VectorProcessorDriver):
     def __init__(self, id: str, config: VectorProcessorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

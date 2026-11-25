@@ -346,7 +346,7 @@ class DoclingDocumentLoaderAction(DocumentLoaderAction):
         return result
 
 @register_document_loader_driver(DocumentLoaderDriverType.DOCLING)
-class DoclingDocumentLoaderService(DocumentLoaderDriver):
+class DoclingDocumentLoaderDriver(DocumentLoaderDriver):
     def __init__(self, id: str, config: DoclingDocumentLoaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -441,7 +441,12 @@ class DoclingDocumentLoaderService(DocumentLoaderDriver):
         await super()._stop()
 
     async def _run(self, action: DocumentLoaderActionConfig, context: ComponentActionContext) -> Any:
-        return await DoclingDocumentLoaderAction(action, self._converter, self._tokenizer, self.config.enable_ocr).run(context)
+        return await DoclingDocumentLoaderAction(
+            action,
+            self._converter,
+            self._tokenizer,
+            self.config.enable_ocr
+        ).run(context)
 
     def _load_document_converter(self) -> DocumentConverter:
         from docling.document_converter import DocumentConverter, PdfFormatOption

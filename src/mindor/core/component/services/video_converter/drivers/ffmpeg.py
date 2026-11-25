@@ -296,7 +296,7 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         return f"scale={w}:{h}"
 
 @register_video_converter_driver(VideoConverterDriverType.FFMPEG)
-class FFmpegVideoConverterService(VideoConverterDriver):
+class FFmpegVideoConverterDriver(VideoConverterDriver):
     def __init__(self, id: str, config: VideoConverterComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

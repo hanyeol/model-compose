@@ -324,7 +324,7 @@ class AzureBlobFileStoreAction(FileStoreAction):
         return f"{self.location.container}/{quoted_blob_name}"
 
 @register_file_store_driver(FileStoreDriverType.AZURE_BLOB)
-class AzureBlobFileStoreService(FileStoreDriver):
+class AzureBlobFileStoreDriver(FileStoreDriver):
     config: AzureBlobFileStoreComponentConfig
 
     def __init__(self, id: str, config: AzureBlobFileStoreComponentConfig, daemon: bool):

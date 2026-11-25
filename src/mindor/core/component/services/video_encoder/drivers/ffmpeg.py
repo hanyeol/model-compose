@@ -705,7 +705,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         return f"scale={w}:{h}"
 
 @register_video_encoder_driver(VideoEncoderDriverType.FFMPEG)
-class FFmpegVideoEncoderService(VideoEncoderDriver):
+class FFmpegVideoEncoderDriver(VideoEncoderDriver):
     def __init__(self, id: str, config: VideoEncoderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

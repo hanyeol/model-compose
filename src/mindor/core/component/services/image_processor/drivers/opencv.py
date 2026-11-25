@@ -55,7 +55,7 @@ class OpenCvImageProcessorAction(ImageProcessorAction):
         return await self._run_in_executor(_canny)
 
 @register_image_processor_driver(ImageProcessorDriverType.OPENCV)
-class OpenCvImageProcessorService(ImageProcessorDriver):
+class OpenCvImageProcessorDriver(ImageProcessorDriver):
     def __init__(self, id: str, config: ImageProcessorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

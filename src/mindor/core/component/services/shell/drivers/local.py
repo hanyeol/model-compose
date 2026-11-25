@@ -99,7 +99,7 @@ class LocalShellAction(ShellAction):
         return self.base_dir or os.getcwd()
 
 @register_shell_driver(ShellDriverType.LOCAL)
-class LocalShellService(ShellDriver):
+class LocalShellDriver(ShellDriver):
     def __init__(self, id: str, config: LocalShellComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -326,7 +326,7 @@ class OpenCvImageAnalyzerAction(ImageAnalyzerAction):
         return await self._run_in_executor(_analyze_lit_structure)
 
 @register_image_analyzer_driver(ImageAnalyzerDriverType.OPENCV)
-class OpenCvImageAnalyzerService(ImageAnalyzerDriver):
+class OpenCvImageAnalyzerDriver(ImageAnalyzerDriver):
     def __init__(self, id: str, config: ImageAnalyzerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

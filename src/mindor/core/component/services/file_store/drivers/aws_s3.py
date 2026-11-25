@@ -279,7 +279,7 @@ class AwsS3FileStoreAction(FileStoreAction):
         return f"https://s3.amazonaws.com/{self.location.bucket}/{quoted_object_key}"
 
 @register_file_store_driver(FileStoreDriverType.AWS_S3)
-class AwsS3FileStoreService(FileStoreDriver):
+class AwsS3FileStoreDriver(FileStoreDriver):
     config: AwsS3FileStoreComponentConfig
 
     def __init__(self, id: str, config: AwsS3FileStoreComponentConfig, daemon: bool):

@@ -113,7 +113,7 @@ class HuggingfaceDatasetsAction(DatasetsAction):
         return load_params
 
 @register_datasets_driver(DatasetsDriverType.HUGGINGFACE)
-class HuggingfaceDatasetsService(DatasetsDriver):
+class HuggingfaceDatasetsDriver(DatasetsDriver):
     def __init__(self, id: str, config: HuggingfaceDatasetsComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

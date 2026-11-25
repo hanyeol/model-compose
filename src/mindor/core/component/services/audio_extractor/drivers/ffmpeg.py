@@ -219,7 +219,7 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
         return get_audio_codec_for_format(format)
 
 @register_audio_extractor_driver(AudioExtractorDriverType.FFMPEG)
-class FFmpegAudioExtractorService(AudioExtractorDriver):
+class FFmpegAudioExtractorDriver(AudioExtractorDriver):
     def __init__(self, id: str, config: AudioExtractorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

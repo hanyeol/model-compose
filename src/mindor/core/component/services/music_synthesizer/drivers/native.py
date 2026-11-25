@@ -594,7 +594,7 @@ class NativeMusicSynthesizerAction(MusicSynthesizerAction):
         })
 
 @register_music_synthesizer_driver(MusicSynthesizerDriverType.NATIVE)
-class NativeMusicSynthesizerService(MusicSynthesizerDriver):
+class NativeMusicSynthesizerDriver(MusicSynthesizerDriver):
     def __init__(self, id: str, config: MusicSynthesizerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

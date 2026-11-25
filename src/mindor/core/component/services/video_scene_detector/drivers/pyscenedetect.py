@@ -167,7 +167,7 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         raise ValueError(f"Unsupported detector type: {detector}")
 
 @register_video_scene_detector_driver(VideoSceneDetectorDriverType.PYSCENEDETECT)
-class PySceneVideoSceneDetectorService(VideoSceneDetectorDriver):
+class PySceneVideoSceneDetectorDriver(VideoSceneDetectorDriver):
     def __init__(self, id: str, config: VideoSceneDetectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

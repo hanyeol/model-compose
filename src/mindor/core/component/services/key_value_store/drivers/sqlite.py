@@ -154,7 +154,7 @@ class SqliteKeyValueStoreAction(KeyValueStoreAction):
             return value
 
 @register_kv_store_service(KeyValueStoreDriverType.SQLITE)
-class SqliteKeyValueStoreService(KeyValueStoreDriver):
+class SqliteKeyValueStoreDriver(KeyValueStoreDriver):
     def __init__(self, id: str, config: SqliteKeyValueStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

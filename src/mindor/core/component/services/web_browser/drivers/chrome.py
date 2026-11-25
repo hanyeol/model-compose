@@ -466,7 +466,7 @@ class ChromeBrowserSession(WebBrowserSession):
         return f"window.scrollBy({x or 0}, {y or 0})"
 
 @register_web_browser_driver(WebBrowserDriverType.CHROME)
-class ChromeWebBrowserService(WebBrowserDriver):
+class ChromeWebBrowserDriver(WebBrowserDriver):
     config: ChromeWebBrowserComponentConfig
 
     def __init__(self, id: str, config: ChromeWebBrowserComponentConfig, daemon: bool):

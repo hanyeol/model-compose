@@ -99,7 +99,7 @@ class MemoryKeyValueStoreAction(KeyValueStoreAction):
         return value
 
 @register_kv_store_service(KeyValueStoreDriverType.MEMORY)
-class MemoryKeyValueStoreService(KeyValueStoreDriver):
+class MemoryKeyValueStoreDriver(KeyValueStoreDriver):
     def __init__(self, id: str, config: MemoryKeyValueStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

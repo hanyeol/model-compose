@@ -25,7 +25,7 @@ class NativeImageCompressorAction(ImageCompressorAction):
         return await self._run_in_executor(_compress)
 
 @register_image_compressor_driver(ImageCompressorDriverType.NATIVE)
-class NativeImageCompressorService(ImageCompressorDriver):
+class NativeImageCompressorDriver(ImageCompressorDriver):
     def __init__(self, id: str, config: ImageCompressorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

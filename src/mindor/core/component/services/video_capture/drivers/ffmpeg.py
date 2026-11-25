@@ -272,7 +272,7 @@ class FFmpegVideoCaptureAction(VideoCaptureAction):
         return video_format
 
 @register_video_capture_driver(VideoCaptureDriverType.FFMPEG)
-class FFmpegVideoCaptureService(VideoCaptureDriver):
+class FFmpegVideoCaptureDriver(VideoCaptureDriver):
     def __init__(self, id: str, config: VideoCaptureComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

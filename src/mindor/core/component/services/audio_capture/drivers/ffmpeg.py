@@ -302,7 +302,7 @@ class FFmpegAudioCaptureAction(AudioCaptureAction):
         return audio_format
 
 @register_audio_capture_driver(AudioCaptureDriverType.FFMPEG)
-class FFmpegAudioCaptureService(AudioCaptureDriver):
+class FFmpegAudioCaptureDriver(AudioCaptureDriver):
     def __init__(self, id: str, config: AudioCaptureComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

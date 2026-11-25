@@ -181,7 +181,7 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         raise NotImplementedError(f"Audio playback is not supported on platform: {system}")
 
 @register_audio_playback_driver(AudioPlaybackDriverType.FFMPEG)
-class FFmpegAudioPlaybackService(AudioPlaybackDriver):
+class FFmpegAudioPlaybackDriver(AudioPlaybackDriver):
     def __init__(self, id: str, config: AudioPlaybackComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -104,7 +104,7 @@ class RedisKeyValueStoreAction(KeyValueStoreAction):
         return value
 
 @register_kv_store_service(KeyValueStoreDriverType.REDIS)
-class RedisKeyValueStoreService(KeyValueStoreDriver):
+class RedisKeyValueStoreDriver(KeyValueStoreDriver):
     def __init__(self, id: str, config: RedisKeyValueStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

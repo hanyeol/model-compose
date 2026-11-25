@@ -188,7 +188,7 @@ class FFmpegMediaInspectorAction(MediaInspectorAction):
         return None
 
 @register_media_inspector_driver(MediaInspectorDriverType.FFMPEG)
-class FFmpegMediaInspectorService(MediaInspectorDriver):
+class FFmpegMediaInspectorDriver(MediaInspectorDriver):
     def __init__(self, id: str, config: MediaInspectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

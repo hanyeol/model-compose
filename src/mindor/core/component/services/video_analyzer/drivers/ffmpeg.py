@@ -276,7 +276,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         }
 
 @register_video_analyzer_driver(VideoAnalyzerDriverType.FFMPEG)
-class FFmpegVideoAnalyzerService(VideoAnalyzerDriver):
+class FFmpegVideoAnalyzerDriver(VideoAnalyzerDriver):
     def __init__(self, id: str, config: VideoAnalyzerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -79,8 +79,9 @@ class HttpClientCallbackCompletion(HttpClientCompletion):
         return await future
 
 class HttpClientAction(ComponentAction):
-    def __init__(self, config: HttpClientActionConfig):
+    def __init__(self, config: HttpClientActionConfig, client: HttpClient):
         self.config: HttpClientActionConfig = config
+        self.client: HttpClient = client
         self.completion: HttpClientCompletion = None
 
         if self.config.completion:
@@ -97,7 +98,7 @@ class HttpClientAction(ComponentAction):
         
         raise ValueError(f"Unsupported http completion type: {self.config.completion.type}")
 
-    async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         url_or_path = await self._resolve_url_or_path(context)
         method      = await context.render_variable(self.config.method)
         params      = await context.render_variable(self.config.params)
@@ -106,7 +107,7 @@ class HttpClientAction(ComponentAction):
 
         is_direct_output = not self.config.output or self.config.output == "${response}"
 
-        response = await client.request(url_or_path, method, params, body, headers)
+        response = await self.client.request(url_or_path, method, params, body, headers)
 
         if isinstance(response, HttpEventStreamResource):
             async def _stream_chunk_generator(response=response, scope=f"stream:{id(response)}"):
@@ -125,7 +126,7 @@ class HttpClientAction(ComponentAction):
         if self.completion:
             is_direct_output = not self.config.output or self.config.output == "${result}"
 
-            result = await self.completion.run(context, client)
+            result = await self.completion.run(context, self.client)
 
             if isinstance(result, HttpEventStreamResource):
                 async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
@@ -204,4 +205,4 @@ class HttpClientComponent(ComponentService):
         if self._rate_limiter:
             await self._rate_limiter.acquire()
 
-        return await HttpClientAction(action).run(context, self.client)
+        return await HttpClientAction(action, self.client).run(context)

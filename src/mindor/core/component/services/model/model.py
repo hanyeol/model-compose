@@ -12,11 +12,12 @@ import asyncio
 import importlib
 
 class ModelAction(ComponentAction):
-    def __init__(self, config: ModelActionConfig):
+    def __init__(self, config: ModelActionConfig, driver: ModelTaskDriver):
         self.config: ModelActionConfig = config
+        self.driver: ModelTaskDriver = driver
 
-    async def run(self, context: ComponentActionContext, service: ModelTaskDriver) -> Any:
-        return await service.run(self.config, context)
+    async def run(self, context: ComponentActionContext) -> Any:
+        return await self.driver.run(self.config, context)
 
 @register_component(ComponentType.MODEL)
 class ModelComponent(ComponentService):
@@ -108,7 +109,7 @@ class ModelComponent(ComponentService):
         await self.driver.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await ModelAction(action).run(context, self.driver)
+        return await ModelAction(action, self.driver).run(context)
 
     def _on_action_count_changed(self, count: int) -> None:
         if self._on_demand is None or self._stopping:

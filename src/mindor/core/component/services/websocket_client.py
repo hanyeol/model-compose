@@ -11,10 +11,11 @@ from ..context import ComponentActionContext
 import json
 
 class WebSocketClientAction(ComponentAction):
-    def __init__(self, config: WebSocketClientActionConfig):
+    def __init__(self, config: WebSocketClientActionConfig, client: WebSocketClient):
         self.config: WebSocketClientActionConfig = config
+        self.client: WebSocketClient = client
 
-    async def run(self, context: ComponentActionContext, client: WebSocketClient) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         path      = await context.render_variable(self.config.path)
         params    = await context.render_variable(self.config.params)
         headers   = await context.render_variable(self.config.headers)
@@ -29,7 +30,7 @@ class WebSocketClientAction(ComponentAction):
 
         is_direct_output = not self.config.output or self.config.output == "${response}"
 
-        connection, owned = await client.connect(
+        connection, owned = await self.client.connect(
             path=path,
             params=params or None,
             headers=headers or None,
@@ -168,4 +169,4 @@ class WebSocketClientComponent(ComponentService):
             self.client = None
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await WebSocketClientAction(action).run(context, self.client)
+        return await WebSocketClientAction(action, self.client).run(context)

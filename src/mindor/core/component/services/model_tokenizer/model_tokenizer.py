@@ -8,11 +8,12 @@ from .base import ModelTokenizerTaskDriver, ModelTokenizerTaskDriverRegistry
 import importlib
 
 class ModelTokenizerAction(ComponentAction):
-    def __init__(self, config: ModelTokenizerActionConfig):
+    def __init__(self, config: ModelTokenizerActionConfig, driver: ModelTokenizerTaskDriver):
         self.config: ModelTokenizerActionConfig = config
+        self.driver: ModelTokenizerTaskDriver = driver
 
-    async def run(self, context: ComponentActionContext, service: ModelTokenizerTaskDriver) -> Any:
-        return await service.run(self.config, context)
+    async def run(self, context: ComponentActionContext) -> Any:
+        return await self.driver.run(self.config, context)
 
 @register_component(ComponentType.MODEL_TOKENIZER)
 class ModelTokenizerComponent(ComponentService):
@@ -70,4 +71,4 @@ class ModelTokenizerComponent(ComponentService):
         await self.driver.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await ModelTokenizerAction(action).run(context, self.driver)
+        return await ModelTokenizerAction(action, self.driver).run(context)

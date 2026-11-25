@@ -15,16 +15,17 @@ if TYPE_CHECKING:
     from mcp.types import ContentBlock
 
 class McpServerAction(ComponentAction):
-    def __init__(self, config: McpServerActionConfig):
+    def __init__(self, config: McpServerActionConfig, client: McpClient):
         self.config: McpServerActionConfig = config
+        self.client: McpClient = client
 
-    async def run(self, context: ComponentActionContext, client: McpClient) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         tool      = await context.render_variable(self.config.tool)
         arguments = await context.render_variable(self.config.arguments)
 
         is_direct_output = not self.config.output or self.config.output == "${response}"
 
-        response = [ await self._convert_output_value(content) for content in await client.call_tool(tool, arguments) ]
+        response = [ await self._convert_output_value(content) for content in await self.client.call_tool(tool, arguments) ]
         context.register_source("response", response)
 
         return (await context.render_variable(self.config.output)) if not is_direct_output else response
@@ -125,4 +126,4 @@ class McpServerComponent(ComponentService):
             return False
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await McpServerAction(action).run(context, self.client)
+        return await McpServerAction(action, self.client).run(context)

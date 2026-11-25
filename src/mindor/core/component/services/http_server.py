@@ -72,8 +72,9 @@ class HttpServerCallbackCompletion(HttpServerCompletion):
         return await future
 
 class HttpServerAction(ComponentAction):
-    def __init__(self, config: HttpServerActionConfig):
+    def __init__(self, config: HttpServerActionConfig, client: HttpClient):
         self.config: HttpServerActionConfig = config
+        self.client: HttpClient = client
         self.completion: HttpServerCompletion = None
 
         if self.config.completion:
@@ -90,7 +91,7 @@ class HttpServerAction(ComponentAction):
         
         raise ValueError(f"Unsupported http completion type: {self.config.completion.type}")
 
-    async def run(self, context: ComponentActionContext, client: HttpClient) -> Any:
+    async def run(self, context: ComponentActionContext) -> Any:
         path    = await context.render_variable(self.config.path)
         method  = await context.render_variable(self.config.method)
         params  = await context.render_variable(self.config.params)
@@ -99,7 +100,7 @@ class HttpServerAction(ComponentAction):
 
         is_direct_output = not self.config.output or self.config.output == "${response}"
 
-        response = await client.request(path or "", method, params, body, headers)
+        response = await self.client.request(path or "", method, params, body, headers)
 
         if isinstance(response, HttpEventStreamResource):
             async def _stream_chunk_generator(response=response, scope=f"stream:{id(response)}"):
@@ -120,7 +121,7 @@ class HttpServerAction(ComponentAction):
         if self.completion:
             is_direct_output = not self.config.output or self.config.output == "${result}"
 
-            result = await self.completion.run(context, client)
+            result = await self.completion.run(context, self.client)
 
             if isinstance(result, HttpEventStreamResource):
                 async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
@@ -227,4 +228,4 @@ class HttpServerComponent(ComponentService):
             return False
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await HttpServerAction(action).run(context, self.client)
+        return await HttpServerAction(action, self.client).run(context)

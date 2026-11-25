@@ -8,6 +8,11 @@ from mindor.dsl.schema.component import (
 )
 from mindor.dsl.schema.action import ModelActionConfig, PiH3TextToVideoModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.installer import (
+    install_package,
+    install_package_from_github,
+    is_package_installed,
+)
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.logger import logging
@@ -343,7 +348,8 @@ class PiH3TextToVideoTaskDriver(ModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch", "torchvision"),
-            "diffusers>=0.36",
+            "diffusers==0.40.0",
+            "peft==0.20.0",
             "transformers>=4.45",
             "accelerate>=0.34",
             "safetensors>=0.4",
@@ -355,8 +361,24 @@ class PiH3TextToVideoTaskDriver(ModelTaskDriver):
             "Pillow>=10",
             "numpy>=1.24",
             "huggingface_hub>=0.25",
-            "lakonlab>=0.3",
         ]
+
+    async def _setup(self) -> None:
+        # mmcv 1.x's setup.py imports torch at build time, which PEP 517's
+        # isolated env hides. `--no-build-isolation` reuses the venv's torch.
+        if not is_package_installed("mmcv"):
+            await install_package("mmcv==1.6.1", pip_options=[ "--no-build-isolation" ])
+
+        # LakonLab has no PyPI release and its requirements.txt pins the whole
+        # training stack; `--no-deps` keeps those pins from stomping ours.
+        if not is_package_installed("lakonlab", revision="v0.3.0"):
+            await install_package_from_github(
+                "lakonlab",
+                "https://github.com/Lakonik/LakonLab.git",
+                revision="v0.3.0",
+                source_path=".",
+                pip_options=[ "--no-deps" ],
+            )
 
     async def _load_model(self) -> None:
         self.device = self._resolve_device(self.config.device)

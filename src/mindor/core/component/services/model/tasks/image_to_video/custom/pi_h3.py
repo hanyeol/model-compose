@@ -391,10 +391,15 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
             # transformer partition is fetched and the pipeline's declared
             # signature is image-to-video (optionally with a last-frame keyframe).
             manager = ComponentsManager() if self.config.cpu_offload else None
+            # MiniMax-H3 ships the transformer as custom code on the Hub, so
+            # `trust_remote_code=True` is required on both the pipeline wiring
+            # and the component load — without it `pipeline.transformer` ends
+            # up None and the adapter attach fails downstream.
             pipeline = ModularPipeline.from_pretrained(
                 model_path,
                 workflow="fl2va",
                 components_manager=manager,
+                trust_remote_code=True,
             )
 
             components: Dict[str, Any] = {}
@@ -405,7 +410,7 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
             if components:
                 pipeline.update_components(**components)
 
-            pipeline.load_components(dtype=torch.bfloat16)
+            pipeline.load_components(dtype=torch.bfloat16, trust_remote_code=True)
 
             logging.info(
                 f"Component '{self.id}': loading pi-H3 distillation adapter '{adapter_subfolder}' from {distillation_path}"

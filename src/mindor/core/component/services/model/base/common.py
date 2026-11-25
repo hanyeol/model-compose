@@ -79,10 +79,11 @@ class ModelTaskDriver(ComponentDriver):
         if not self._model_loaded:
             await self._load_model_on_demand()
 
-        if getattr(action, "peft_adapter", None):
-            self._apply_peft_adapters(action.peft_adapter)
-        else:
-            self._disable_peft_adapters()
+        if self.config.peft_adapter:
+            if action.peft_adapter:
+                self._apply_peft_adapters(action.peft_adapter)
+            else:
+                self._disable_peft_adapters()
 
         return await self._run(action, context)
 

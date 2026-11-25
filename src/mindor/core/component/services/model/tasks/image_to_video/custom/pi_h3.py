@@ -53,11 +53,15 @@ _PI_H3_VAE_DECODE_TILE_BATCH_SIZE = 28
 _PI_H3_DWD_OUTPUT_KEYS: Tuple[str, ...] = ("dwd_pixels", "audio", "sampling_rate")
 _PI_H3_VAE_OUTPUT_KEYS: Tuple[str, ...] = ("videos", "audio", "sampling_rate")
 
+# Submodules to materialize via `load_components(names=[...])`. The non-DWD
+# path pre-swaps the VAE and the transformer is pre-loaded explicitly to carry
+# `trust_remote_code=True` (diffusers refuses to forward it to components from
+# a different repo than the pipeline), so neither appears here.
 _PI_H3_DWD_COMPONENT_NAMES: Tuple[str, ...] = (
-    "text_encoder", "tokenizer", "processor", "vae", "audio_vae", "transformer",
+    "text_encoder", "tokenizer", "processor", "vae", "audio_vae",
 )
 _PI_H3_VAE_COMPONENT_NAMES: Tuple[str, ...] = (
-    "text_encoder", "tokenizer", "processor", "audio_vae", "transformer",
+    "text_encoder", "tokenizer", "processor", "audio_vae",
 )
 
 class PiH3ImageToVideoTaskAction(ImageToVideoTaskAction):
@@ -377,6 +381,8 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
         else:
             text_encoder = None
 
+        transformer = await self._load_pretrained_transformer(model_path)
+
         distillation_path = await self._provision_model(self.config.distillation.model)
         adapter_subfolder = f"pi_h3_{self.config.step_count}step{'_dwd_adapter' if self.config.dwd else '_adapter'}"
 
@@ -406,15 +412,17 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
             if text_encoder is not None:
                 pipeline.update_components(text_encoder=text_encoder)
 
+            # The transformer is injected explicitly because MiniMax-H3 ships
+            # it as custom code on the Hub, and diffusers refuses to forward
+            # `trust_remote_code` to components whose spec points at a
+            # different repo than the pipeline (the local snapshot path we
+            # build the pipeline from here) — it would silently land as None
+            # and break the adapter attach downstream.
+            pipeline.update_components(transformer=transformer)
+
             component_names = _PI_H3_DWD_COMPONENT_NAMES if self.config.dwd else _PI_H3_VAE_COMPONENT_NAMES
-            # `trust_remote_code=True` is required — MiniMax-H3 ships the
-            # transformer as custom code on the Hub; without it `transformer`
-            # ends up None and the adapter attach fails downstream.
-            pipeline.load_components(
-                names=list(component_names),
-                dtype=torch.bfloat16,
-                trust_remote_code=True,
-            )
+
+            pipeline.load_components(names=list(component_names), dtype=torch.bfloat16)
 
             if not self.config.dwd:
                 pipeline.vae.decode_tile_batch_size = _PI_H3_VAE_DECODE_TILE_BATCH_SIZE
@@ -491,6 +499,27 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
                 params["low_cpu_mem_usage"] = True
 
             return Qwen3VLForConditionalGeneration.from_pretrained(model_path, **params)
+
+        return await self._run_in_executor(_load)
+
+    async def _load_pretrained_transformer(self, model_path: str) -> Any:
+        def _load() -> Any:
+            from diffusers import AutoModel
+            import torch
+
+            logging.info(f"Component '{self.id}': loading transformer from {model_path}")
+
+            params: Dict[str, Any] = {
+                "subfolder": "transformer",
+                "trust_remote_code": True,
+            }
+
+            if self.config.precision is not None:
+                params["torch_dtype"] = self._resolve_torch_dtype(self.config.precision)
+            else:
+                params["torch_dtype"] = torch.bfloat16
+
+            return AutoModel.from_pretrained(model_path, **params)
 
         return await self._run_in_executor(_load)
 

@@ -13,9 +13,9 @@ from ....action.base import ComponentAction
 import asyncio
 
 class GraphStoreAction(ComponentAction):
-    def __init__(self, config: GraphStoreActionConfig, database: Any):
+    def __init__(self, config: GraphStoreActionConfig, client: Any):
         self.config: GraphStoreActionConfig = config
-        self.database: Any = database
+        self.client: Any = client
 
     async def run(self, context: ComponentActionContext) -> Any:
         input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)

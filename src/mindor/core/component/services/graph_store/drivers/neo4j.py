@@ -111,6 +111,7 @@ class Neo4jQueryBuilder:
         node_labels: Optional[List[str]],
     ) -> Tuple[str, Dict[str, Any]]:
         rel_filter = ""
+
         if relationship_types:
             for rt in relationship_types:
                 Neo4jQueryBuilder.verify_identifier(rt, "relationship type")
@@ -137,14 +138,13 @@ class Neo4jQueryBuilder:
         return cypher, { "start_id": start_node }
 
 class Neo4jGraphStoreAction(GraphStoreAction):
-    def __init__(self, config: GraphStoreActionConfig, driver: AsyncDriver, database_name: Optional[str]):
-        super().__init__(config, driver)
+    def __init__(self, config: GraphStoreActionConfig, client: AsyncDriver, database: Optional[str]):
+        super().__init__(config, client)
 
-        self.driver: AsyncDriver = driver
-        self.database_name: Optional[str] = database_name
+        self.database: Optional[str] = database
 
     def _open_session(self) -> AsyncSession:
-        return self.driver.session(database=self.database_name)
+        return self.client.session(database=self.database)
 
     async def _query(
         self,
@@ -230,6 +230,7 @@ class Neo4jGraphStoreAction(GraphStoreAction):
         async with self._open_session() as session:
             for id in node_ids or []:
                 built = Neo4jQueryBuilder.build_update_node(id, properties, labels)
+
                 if built:
                     cypher, cypher_params = built
                     await session.run(cypher, parameters=cypher_params)
@@ -301,27 +302,27 @@ class Neo4jGraphStoreDriver(GraphStoreDriver):
     def __init__(self, id: str, config: GraphStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self.driver: Optional[AsyncDriver] = None
+        self.client: Optional[AsyncDriver] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "neo4j" ]
 
     async def _start(self) -> None:
-        self.driver = self._create_driver()
+        self.client = self._create_client()
 
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
 
-        if self.driver:
-            await self.driver.close()
-            self.driver = None
+        if self.client:
+            await self.client.close()
+            self.client = None
 
     async def _run(self, action: GraphStoreActionConfig, context: ComponentActionContext) -> Any:
-        return await Neo4jGraphStoreAction(action, self.driver, self.config.database).run(context)
+        return await Neo4jGraphStoreAction(action, self.client, self.config.database).run(context)
 
-    def _create_driver(self) -> AsyncDriver:
+    def _create_client(self) -> AsyncDriver:
         from neo4j import AsyncGraphDatabase
 
         auth = (self.config.username, self.config.password) if self.config.username else None

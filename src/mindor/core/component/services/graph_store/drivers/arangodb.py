@@ -145,7 +145,7 @@ class ArangoDBGraphStoreAction(GraphStoreAction):
             records: List[Dict[str, Any]] = []
 
             for query in queries:
-                cursor = self.database.aql.execute(query, bind_vars=bind_vars or {})
+                cursor = self.client.aql.execute(query, bind_vars=bind_vars or {})
                 records.extend(doc for doc in cursor)
 
             return records
@@ -171,20 +171,20 @@ class ArangoDBGraphStoreAction(GraphStoreAction):
             for node in nodes or []:
                 collection_name, doc = ArangoDBQueryBuilder.build_insert_node_doc(node, collection)
 
-                if not self.database.has_collection(collection_name):
-                    self.database.create_collection(collection_name)
+                if not self.client.has_collection(collection_name):
+                    self.client.create_collection(collection_name)
 
-                result = self.database.collection(collection_name).insert(doc)
+                result = self.client.collection(collection_name).insert(doc)
                 inserted_ids.append(result.get("_id", result.get("_key", "")))
                 created_nodes += 1
 
             for relationship in relationships or []:
                 collection_name, doc = ArangoDBQueryBuilder.build_insert_edge_doc(relationship, edge_collection)
 
-                if not self.database.has_collection(collection_name):
-                    self.database.create_collection(collection_name, edge=True)
+                if not self.client.has_collection(collection_name):
+                    self.client.create_collection(collection_name, edge=True)
 
-                result = self.database.collection(collection_name).insert(doc)
+                result = self.client.collection(collection_name).insert(doc)
                 inserted_ids.append(result.get("_id", result.get("_key", "")))
                 created_relationships += 1
 
@@ -213,12 +213,12 @@ class ArangoDBGraphStoreAction(GraphStoreAction):
             if properties:
                 for id in node_ids or []:
                     collection_name, doc = ArangoDBQueryBuilder.build_update_doc(str(id), properties, collection or "nodes")
-                    self.database.collection(collection_name).update(doc)
+                    self.client.collection(collection_name).update(doc)
                     affected_rows += 1
 
                 for id in relationship_ids or []:
                     collection_name, doc = ArangoDBQueryBuilder.build_update_doc(str(id), properties, collection or "edges")
-                    self.database.collection(collection_name).update(doc)
+                    self.client.collection(collection_name).update(doc)
                     affected_rows += 1
 
             return { "affected_rows": affected_rows }
@@ -240,12 +240,12 @@ class ArangoDBGraphStoreAction(GraphStoreAction):
 
             for id in node_ids or []:
                 collection_name, key = ArangoDBQueryBuilder.resolve_doc_id(str(id), collection or "nodes")
-                self.database.collection(collection_name).delete(key)
+                self.client.collection(collection_name).delete(key)
                 affected_rows += 1
 
             for id in relationship_ids or []:
                 collection_name, key = ArangoDBQueryBuilder.resolve_doc_id(str(id), collection or "edges")
-                self.database.collection(collection_name).delete(key)
+                self.client.collection(collection_name).delete(key)
                 affected_rows += 1
 
             return { "affected_rows": affected_rows }
@@ -274,7 +274,7 @@ class ArangoDBGraphStoreAction(GraphStoreAction):
             for start_node in start_nodes:
                 if graph_name:
                     ArangoDBQueryBuilder.verify_identifier(graph_name, "graph")
-                    graph = self.database.graph(graph_name)
+                    graph = self.client.graph(graph_name)
                     result = graph.traverse(
                         start_vertex=str(start_node),
                         direction=arango_direction,
@@ -292,7 +292,7 @@ class ArangoDBGraphStoreAction(GraphStoreAction):
                     edge_collection,
                     relationship_types,
                 )
-                cursor = self.database.aql.execute(aql, bind_vars=bind_vars)
+                cursor = self.client.aql.execute(aql, bind_vars=bind_vars)
                 records.extend(doc for doc in cursor)
 
             return records

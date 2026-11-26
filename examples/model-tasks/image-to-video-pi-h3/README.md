@@ -18,7 +18,8 @@ The rest is the same as the text-to-video example: pruned base + LakonLab adapte
 - `model-compose` on PATH
 - A CUDA-capable GPU. Consumer-class (24 GB) should keep `cpu_offload: true` (already set); Blackwell-class (B200 / H200) can turn it off and enable `quantization: {type: fp8}`.
 - ~45 GB free disk for the pruned base checkpoint plus ~1 GB for the pi-H3 adapter.
-- A Python environment where `torch`, `diffusers (>= 0.36)`, `transformers (>= 4.45)`, `lakonlab (>= 0.3)`, and `av` can be installed. The driver lists these in its setup requirements, so model-compose installs them into `.venv/pi-h3` on first run.
+- A Python environment where `torch`, `diffusers==0.40.0`, `peft==0.20.0`, `transformers (>= 4.45)`, `mmcv==1.6.1`, and `av` can be installed. The driver installs these into `.venv/pi-h3` on first run; LakonLab itself (`v0.3.0`) is pulled from GitHub because it is not published on PyPI.
+- A C/C++ toolchain (`build-essential` on Debian/Ubuntu, Xcode CLT on macOS) so `mmcv==1.6.1` can build its CUDA/C++ extensions. mmcv 1.x predates PEP 517, so the driver installs it with `--no-build-isolation` to reuse the venv's torch at build time.
 
 ### Model Access
 
@@ -70,7 +71,6 @@ The 4-step DWD variant is the recommended default.
 - **Do not layer a user LoRA under `peft_adapter`.** The distilled adapter owns the LoRA slot; the schema rejects the field.
 - **`width`/`height` default to the input image dimensions** when unset in the action. Set them to upscale/downscale without re-authoring the image.
 - **`quantization: {type: fp8}` requires Blackwell-class hardware** (B200 / H200). Leave `quantization` unset otherwise.
-- **Leave `video_shift` / `audio_shift` unset to keep the scheduler defaults** (12 / 3). Override only when matching a specific recipe published by LakonLab.
 - **`num_frames` is snapped upward** to the nearest `17*n + 5` the video VAE can decode (124–345).
 
 ## Shutdown

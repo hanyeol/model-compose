@@ -19,7 +19,8 @@ The driver loads the pruned base through diffusers' `ModularPipeline`, then call
 - `model-compose` on PATH
 - A CUDA-capable GPU. Consumer-class (24 GB) should keep `cpu_offload: true` (already set); Blackwell-class (B200 / H200) can turn it off and enable `quantization: {type: fp8}`.
 - ~45 GB free disk for the pruned base checkpoint plus ~1 GB for the pi-H3 adapter.
-- A Python environment where `torch`, `diffusers (>= 0.36)`, `transformers (>= 4.45)`, `lakonlab (>= 0.3)`, and `av` can be installed. The driver lists these in its setup requirements, so model-compose installs them into `.venv/pi-h3` on first run.
+- A Python environment where `torch`, `diffusers==0.40.0`, `peft==0.20.0`, `transformers (>= 4.45)`, `mmcv==1.6.1`, and `av` can be installed. The driver installs these into `.venv/pi-h3` on first run; LakonLab itself (`v0.3.0`) is pulled from GitHub because it is not published on PyPI.
+- A C/C++ toolchain (`build-essential` on Debian/Ubuntu, Xcode CLT on macOS) so `mmcv==1.6.1` can build its CUDA/C++ extensions. mmcv 1.x predates PEP 517, so the driver installs it with `--no-build-isolation` to reuse the venv's torch at build time.
 
 ### Model Access
 
@@ -49,7 +50,7 @@ The 4-step DWD variant is the recommended default — it is the closest match to
 
 2. **Run the workflow:**
    ```bash
-   # Minimal call — step_count, DWD, and scheduler shift are already wired.
+   # Minimal call — step_count and DWD are already wired.
    curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{"input": {"prompt": "a quiet alleyway at dusk, warm neon reflections on wet pavement, slow dolly in"}}'
@@ -68,7 +69,6 @@ The 4-step DWD variant is the recommended default — it is the closest match to
 - **There is no `guidance_scale` or `negative_prompt`.** pi-H3 is a few-step distilled adapter; it runs a single forward per step with no classifier-free guidance. The schema omits both fields on purpose.
 - **Do not layer a user LoRA under `peft_adapter`.** The distilled adapter owns the LoRA slot; stacking another one changes the few-step trajectory it was tuned for. The schema rejects the field.
 - **`quantization: {type: fp8}` requires Blackwell-class hardware** (B200 / H200). On SM89 and below the LakonLab FP8 kernels either fall back to slow paths or fail to load — leave `quantization` unset unless you've validated the host.
-- **Leave `video_shift` / `audio_shift` unset to keep the scheduler defaults** (12 / 3). The DWD adapter is tuned for those; override only when matching a specific recipe published by LakonLab.
 - **`num_frames` is snapped upward** to the nearest `17*n + 5` the video VAE can decode (124–345). Requests below 124 round up; requests above 345 error out.
 
 ## Shutdown

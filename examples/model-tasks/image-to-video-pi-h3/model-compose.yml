@@ -70,7 +70,3 @@ component:
       # 24 fps × 4-15 s window → 96..360 frames. The driver snaps upward to
       # the nearest 17*n+5 count the video VAE can decode (124..345).
       num_frames: ${input.num_frames as integer | 128}
-      # Leave unset to keep the scheduler's defaults (video=12, audio=3).
-      # Override only when matching a specific recipe published by LakonLab.
-      # video_shift: 12.0
-      # audio_shift: 3.0

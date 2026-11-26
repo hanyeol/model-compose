@@ -18,7 +18,8 @@ pi-H3 将 pi-Flow v2 少步采样与 DWD（Decoding Without a Decoder）结合�
 - PATH 中的 `model-compose`
 - 支持 CUDA 的 GPU。消费级（24 GB）保持 `cpu_offload: true`（已设置）；Blackwell 级（B200 / H200）可关闭并启用 `quantization: {type: fp8}`。
 - 修剪基模检查点约 ~45 GB + pi-H3 适配器约 ~1 GB 磁盘空间。
-- 可安装 `torch`、`diffusers (>= 0.36)`、`transformers (>= 4.45)`、`lakonlab (>= 0.3)`、`av` 的 Python 环境。驱动将其列入 setup requirements，首次运行时 model-compose 会安装到 `.venv/pi-h3`。
+- 可安装 `torch`、`diffusers==0.40.0`、`peft==0.20.0`、`transformers (>= 4.45)`、`mmcv==1.6.1`、`av` 的 Python 环境。驱动在首次运行时会把它们装入 `.venv/pi-h3`；LakonLab（`v0.3.0`）本身因未发布到 PyPI，由驱动从 GitHub 拉取。
+- 用于构建 `mmcv==1.6.1` 的 C/C++ 工具链（Debian/Ubuntu 使用 `build-essential`，macOS 使用 Xcode CLT）。mmcv 1.x 属 PEP 517 之前的包，驱动以 `--no-build-isolation` 方式构建，复用 venv 里的 torch。
 
 ### 模型访问
 
@@ -70,7 +71,6 @@ pi-H3 将 pi-Flow v2 少步采样与 DWD（Decoding Without a Decoder）结合�
 - **不要在 `peft_adapter` 下叠加用户 LoRA。** 蒸馏适配器已占用 LoRA 槽；Schema 会拒绝。
 - **`width`/`height` 未设置时默认取输入图像的尺寸。** 若需上/下采样而无需重作图，才需显式设定。
 - **`quantization: {type: fp8}` 需要 Blackwell 级硬件**（B200 / H200）。否则请不要设置 `quantization`。
-- **不设置 `video_shift` / `audio_shift` 时保持调度器默认值**（12 / 3）。仅在匹配 LakonLab 发布的特定配方时覆盖。
 - **`num_frames` 会向上吸附到视频 VAE 可解码的最近 `17*n + 5`（124–345）。**
 
 ## 关闭

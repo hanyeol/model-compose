@@ -18,7 +18,8 @@ pi-H3는 pi-Flow v2 few-step 샘플링과 DWD(Decoding Without a Decoder)를 결
 - PATH에 `model-compose`
 - CUDA 지원 GPU. 컨슈머급(24 GB)은 `cpu_offload: true` 유지(이미 설정됨); Blackwell급(B200 / H200)은 끄고 `quantization: {type: fp8}`을 켤 수 있습니다.
 - Pruned 베이스 체크포인트용 ~45 GB + pi-H3 어댑터용 ~1 GB 디스크 공간.
-- `torch`, `diffusers (>= 0.36)`, `transformers (>= 4.45)`, `lakonlab (>= 0.3)`, `av`를 설치할 수 있는 Python 환경. 드라이버의 setup requirements에 포함되어 최초 실행 시 `.venv/pi-h3`에 설치됩니다.
+- `torch`, `diffusers==0.40.0`, `peft==0.20.0`, `transformers (>= 4.45)`, `mmcv==1.6.1`, `av`를 설치할 수 있는 Python 환경. 드라이버가 최초 실행 시 `.venv/pi-h3`에 이들을 설치하며, LakonLab(`v0.3.0`)은 PyPI에 없어 GitHub에서 직접 받아옵니다.
+- `mmcv==1.6.1` 빌드를 위한 C/C++ 툴체인 (Debian/Ubuntu는 `build-essential`, macOS는 Xcode CLT). mmcv 1.x는 PEP 517 이전 패키지라 드라이버가 `--no-build-isolation`으로 venv의 torch를 사용해 빌드합니다.
 
 ### 모델 접근
 
@@ -70,7 +71,6 @@ text-to-video 예제와 동일한 매트릭스 — 드라이버가 `step_count`�
 - **`peft_adapter`로 사용자 LoRA를 얹지 마세요.** distilled 어댑터가 LoRA 슬롯을 점유하며 스키마가 해당 필드를 거부합니다.
 - **`width`/`height`는 액션에서 설정하지 않으면 입력 이미지 치수를 그대로 따릅니다.** 이미지를 다시 저작하지 않고 업/다운스케일만 할 때 명시하세요.
 - **`quantization: {type: fp8}`는 Blackwell급 하드웨어(B200 / H200)에서만 유효합니다.** 그 외에는 `quantization`을 비워 두세요.
-- **`video_shift` / `audio_shift`를 설정하지 않으면 스케줄러 기본값(12 / 3)이 유지됩니다.** LakonLab이 공개한 특정 레시피를 맞출 때만 덮어쓰세요.
 - **`num_frames`는 비디오 VAE가 디코딩 가능한 가장 가까운 `17*n + 5`(124–345)로 올림됩니다.**
 
 ## 종료

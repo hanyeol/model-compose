@@ -58,8 +58,9 @@ component:
   # available for the active submodules.
   cpu_offload: true
   max_concurrent_count: 1
-  # pi-H3 needs LakonLab (>= 0.3) which pulls a recent diffusers (>= 0.36).
-  # Isolate the worker to keep it from shadowing the controller's install.
+  # pi-H3 needs LakonLab v0.3.0 (installed from GitHub) + diffusers==0.40.0 +
+  # mmcv==1.6.1. Isolate the worker to keep those hard pins (and the mmcv build)
+  # from shadowing the controller's install.
   runtime:
     type: virtualenv
     driver: python
@@ -78,7 +79,3 @@ component:
       # 24 fps × 4-15 s window → 96..360 frames. The driver snaps upward to
       # the nearest 17*n+5 count the video VAE can decode (124..345).
       num_frames: ${input.num_frames as integer | 128}
-      # Leave unset to keep the scheduler's defaults (video=12, audio=3).
-      # Override only when matching a specific recipe published by LakonLab.
-      # video_shift: 12.0
-      # audio_shift: 3.0

@@ -19,7 +19,8 @@ MiniMax-H3의 공개 가중치는 이미 CFG-distilled이라서 커뮤니티에�
 - PATH에 `model-compose`
 - CUDA 지원 GPU. 컨슈머급(24 GB)은 `cpu_offload: true`를 유지하세요(이미 설정됨). Blackwell급(B200 / H200)은 끄고 `quantization: {type: fp8}`을 켤 수 있습니다.
 - Pruned 베이스 체크포인트용 ~45 GB + pi-H3 어댑터용 ~1 GB의 디스크 공간.
-- `torch`, `diffusers (>= 0.36)`, `transformers (>= 4.45)`, `lakonlab (>= 0.3)`, `av`를 설치할 수 있는 Python 환경. 드라이버가 setup requirements에 등록해두므로 model-compose가 최초 실행 시 `.venv/pi-h3`에 설치합니다.
+- `torch`, `diffusers==0.40.0`, `peft==0.20.0`, `transformers (>= 4.45)`, `mmcv==1.6.1`, `av`를 설치할 수 있는 Python 환경. 드라이버가 최초 실행 시 `.venv/pi-h3`에 이들을 설치하며, LakonLab(`v0.3.0`)은 PyPI에 없어 GitHub에서 직접 받아옵니다.
+- `mmcv==1.6.1` 빌드를 위한 C/C++ 툴체인 (Debian/Ubuntu는 `build-essential`, macOS는 Xcode CLT). mmcv 1.x는 PEP 517 이전 패키지라 드라이버가 `--no-build-isolation`으로 venv의 torch를 사용해 빌드합니다.
 
 ### 모델 접근
 
@@ -49,7 +50,7 @@ MiniMax-H3의 공개 가중치는 이미 CFG-distilled이라서 커뮤니티에�
 
 2. **워크플로 실행:**
    ```bash
-   # 최소 호출 — step_count, DWD, scheduler shift는 이미 예제에 결선되어 있습니다.
+   # 최소 호출 — step_count와 DWD는 이미 예제에 결선되어 있습니다.
    curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{"input": {"prompt": "a quiet alleyway at dusk, warm neon reflections on wet pavement, slow dolly in"}}'
@@ -68,7 +69,6 @@ MiniMax-H3의 공개 가중치는 이미 CFG-distilled이라서 커뮤니티에�
 - **`guidance_scale`과 `negative_prompt`가 없습니다.** pi-H3는 few-step distilled 어댑터로, 매 스텝 single forward만 돌며 CFG가 적용되지 않습니다. 스키마에서 의도적으로 두 필드를 제외합니다.
 - **`peft_adapter`로 사용자 LoRA를 얹지 마세요.** distilled 어댑터가 LoRA 슬롯을 점유하며, 그 위에 다른 LoRA를 쌓으면 few-step 궤적이 뒤틀립니다. 스키마가 해당 필드를 거부합니다.
 - **`quantization: {type: fp8}`는 Blackwell급 하드웨어(B200 / H200)에서만 유효합니다.** SM89 이하에서는 LakonLab FP8 커널이 느린 fallback으로 떨어지거나 로드에 실패합니다 — 호스트를 검증하지 않았다면 `quantization`을 비워 두세요.
-- **`video_shift` / `audio_shift`를 설정하지 않으면 스케줄러 기본값(12 / 3)이 유지됩니다.** DWD 어댑터는 해당 기본값에 맞춰 튜닝되었습니다; LakonLab이 공개한 특정 레시피를 맞출 때만 덮어쓰세요.
 - **`num_frames`는 비디오 VAE가 디코딩 가능한 가장 가까운 `17*n + 5` 값(124–345)으로 올림됩니다.** 124 미만 요청은 올림되고 345 초과는 에러가 납니다.
 
 ## 종료

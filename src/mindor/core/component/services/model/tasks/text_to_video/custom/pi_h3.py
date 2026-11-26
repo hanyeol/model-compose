@@ -26,15 +26,15 @@ if TYPE_CHECKING:
 
 # FP8 exclude keys documented in LakonLab's piH3 demos. DWD and non-DWD land
 # on different projection names because the non-DWD path keeps the VAE head.
-_PI_H3_DWD_TRANSFORMER_FP8_EXCLUDE: Tuple[str, ...] = (
+_PI_H3_DWD_TRANSFORMER_FP8_EXCLUDE_KEYS: Tuple[str, ...] = (
     "lora", "norm_out", "proj_out", "dwd_linear_head",
 )
 
-_PI_H3_VAE_TRANSFORMER_FP8_EXCLUDE: Tuple[str, ...] = (
+_PI_H3_VAE_TRANSFORMER_FP8_EXCLUDE_KEYS: Tuple[str, ...] = (
     "lora", "self.norm_out", "self.proj_out", "self.audio_proj_out",
 )
 
-_PI_H3_TEXT_ENCODER_FP8_EXCLUDE: Tuple[str, ...] = (
+_PI_H3_TEXT_ENCODER_FP8_EXCLUDE_KEYS: Tuple[str, ...] = (
     "lm_head",
 )
 
@@ -402,16 +402,15 @@ class PiH3TextToVideoTaskDriver(ModelTaskDriver):
             # kwargs (`image=` / `last_image=`), and ComponentsManager drives
             # placement when cpu_offload is on.
             manager = ComponentsManager() if self.config.cpu_offload else None
-            pipeline = self._build_lakonlab_pipeline(model_path, manager)
 
-            if not self.config.dwd:
-                # The spec swap must run before `load_components` so the
-                # swapped VAE class is what gets instantiated.
-                from lakonlab.models.architectures.diffusers.minimax_h3 import AutoencoderKLMiniMaxH3
+            if self.config.dwd:
+                from lakonlab.pipelines.pipeline_minimax_h3 import MiniMaxH3DWDBlocks
 
-                vae_spec = pipeline.get_component_spec("vae")
-                vae_spec.type_hint = AutoencoderKLMiniMaxH3
-                pipeline.update_components(vae=vae_spec.load(dtype=torch.float16))
+                pipeline = MiniMaxH3DWDBlocks().init_pipeline(model_path, components_manager=manager)
+            else:
+                from lakonlab.pipelines.pipeline_minimax_h3 import MiniMaxH3BlocksMod
+
+                pipeline = MiniMaxH3BlocksMod().init_pipeline(model_path, components_manager=manager)
 
             if text_encoder is not None:
                 pipeline.update_components(text_encoder=text_encoder)
@@ -424,11 +423,18 @@ class PiH3TextToVideoTaskDriver(ModelTaskDriver):
             # and break the adapter attach downstream.
             pipeline.update_components(transformer=transformer)
 
-            component_names = _PI_H3_DWD_COMPONENT_NAMES if self.config.dwd else _PI_H3_VAE_COMPONENT_NAMES
+            if self.config.dwd:
+                pipeline.load_components(names=list(_PI_H3_DWD_COMPONENT_NAMES), dtype=torch.bfloat16)
+            else:
+                # The spec swap must run before `load_components` so the
+                # swapped VAE class is what gets instantiated.
+                from lakonlab.models.architectures.diffusers.minimax_h3 import AutoencoderKLMiniMaxH3
 
-            pipeline.load_components(names=list(component_names), dtype=torch.bfloat16)
+                vae_spec = pipeline.get_component_spec("vae")
+                vae_spec.type_hint = AutoencoderKLMiniMaxH3
+                pipeline.update_components(vae=vae_spec.load(dtype=torch.float16))
 
-            if not self.config.dwd:
+                pipeline.load_components(names=list(_PI_H3_VAE_COMPONENT_NAMES), dtype=torch.bfloat16)
                 pipeline.vae.decode_tile_batch_size = _PI_H3_VAE_DECODE_TILE_BATCH_SIZE
 
             logging.info(
@@ -457,7 +463,22 @@ class PiH3TextToVideoTaskDriver(ModelTaskDriver):
             )
 
             if self.config.quantization is not None:
-                self._apply_fp8_quantization(pipeline)
+                from lakonlab.ops import quantize_frozen_linears
+
+                logging.info(f"Component '{self.id}': applying LakonLab FP8 quantization to frozen linears")
+
+                if self.config.dwd:
+                    pipeline.transformer.requires_grad_(False)
+                    quantize_frozen_linears(pipeline.transformer, exclude_keys=list(_PI_H3_DWD_TRANSFORMER_FP8_EXCLUDE_KEYS))
+                else:
+                    pipeline.transformer.requires_grad_(False)
+                    quantize_frozen_linears(pipeline.transformer, exclude_keys=list(_PI_H3_VAE_TRANSFORMER_FP8_EXCLUDE_KEYS))
+
+                text_encoder = getattr(pipeline, "text_encoder", None)
+
+                if text_encoder is not None:
+                    text_encoder.requires_grad_(False)
+                    quantize_frozen_linears(text_encoder, exclude_keys=list(_PI_H3_TEXT_ENCODER_FP8_EXCLUDE_KEYS))
 
             if manager is not None:
                 # 12 GB mirrors the upstream MiniMax-H3 pipeline docs; the
@@ -530,27 +551,6 @@ class PiH3TextToVideoTaskDriver(ModelTaskDriver):
             return AutoModel.from_pretrained(model_path, **params)
 
         return await self._run_in_executor(_load)
-
-    def _build_lakonlab_pipeline(self, model_path: str, manager: Optional[Any]) -> Any:
-        if self.config.dwd:
-            from lakonlab.pipelines.pipeline_minimax_h3 import MiniMaxH3DWDBlocks
-            return MiniMaxH3DWDBlocks().init_pipeline(model_path, components_manager=manager)
-
-        from lakonlab.pipelines.pipeline_minimax_h3 import MiniMaxH3BlocksMod
-        return MiniMaxH3BlocksMod().init_pipeline(model_path, components_manager=manager)
-
-    def _apply_fp8_quantization(self, pipeline: Any) -> None:
-        from lakonlab.ops import quantize_frozen_linears
-
-        logging.info(f"Component '{self.id}': applying LakonLab FP8 quantization to frozen linears")
-
-        exclude = _PI_H3_DWD_TRANSFORMER_FP8_EXCLUDE if self.config.dwd else _PI_H3_VAE_TRANSFORMER_FP8_EXCLUDE
-        quantize_frozen_linears(pipeline.transformer, exclude_keys=list(exclude))
-
-        text_encoder = getattr(pipeline, "text_encoder", None)
-
-        if text_encoder is not None:
-            quantize_frozen_linears(text_encoder, exclude_keys=list(_PI_H3_TEXT_ENCODER_FP8_EXCLUDE))
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await PiH3TextToVideoTaskAction(

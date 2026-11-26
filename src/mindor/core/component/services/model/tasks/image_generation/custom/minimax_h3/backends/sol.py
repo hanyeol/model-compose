@@ -378,7 +378,7 @@ class MinimaxH3SolImageGenerationEditAction(MinimaxH3ImageGenerationEditAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
         prompts, images = inputs
-        reference_lists: List[List[PILImage.Image]] = [ await image.collect() for image in images ]
+        images = [ await image.collect() for image in images ]
 
         def _generate() -> List[PILImage.Image]:
             import torch
@@ -391,7 +391,9 @@ class MinimaxH3SolImageGenerationEditAction(MinimaxH3ImageGenerationEditAction):
 
                 return callback_kwargs
 
-            for prompt, references in zip(prompts, reference_lists):
+            for prompt, images in zip(prompts, images):
+                images = [ image.convert("RGB") for image in images ]
+
                 if params["seed"] is not None:
                     generator = torch.Generator(device=self.pipeline.device).manual_seed(params["seed"])
                 else:
@@ -403,7 +405,7 @@ class MinimaxH3SolImageGenerationEditAction(MinimaxH3ImageGenerationEditAction):
 
                 pipeline_params: Dict[str, Any] = {
                     "prompt":                prompt or "",
-                    "image":                 references,
+                    "image":                 images,
                     "height":                params["height"],
                     "width":                 params["width"],
                     "min_generation_area":   params["min_generation_area"],

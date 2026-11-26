@@ -124,6 +124,9 @@ class MinimaxH3ImageToVideoTaskAction(ImageToVideoTaskAction):
 
             try:
                 for image, last_image, prompt, negative_prompt in zip(images, last_images, prompts, negative_prompts):
+                    image      = image.convert("RGB")
+                    last_image = last_image.convert("RGB") if last_image is not None else None
+
                     if params["seed"] is not None:
                         generator = torch.Generator(device=self.pipeline.device).manual_seed(params["seed"])
                     else:

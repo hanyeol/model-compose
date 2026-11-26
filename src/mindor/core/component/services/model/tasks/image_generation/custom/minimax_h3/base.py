@@ -159,14 +159,16 @@ class MinimaxH3ImageGenerationEditAction(MinimaxH3ImageGenerationTaskAction):
         # `render_image_array(single_as_array=True)` returns an `ImageArrayValue`
         # unit per batch item (each a PIL list after `collect()`); materialize
         # them out of the async loop so the executor closure stays sync.
-        reference_lists: List[List[PILImage.Image]] = [ await image.collect() for image in images ]
+        images = [ await image.collect() for image in images ]
 
         def _generate() -> List[PILImage.Image]:
             import torch
 
             results: List[PILImage.Image] = []
 
-            for prompt, references in zip(prompts, reference_lists):
+            for prompt, images in zip(prompts, images):
+                images = [ image.convert("RGB") for image in images ]
+
                 if params["seed"] is not None:
                     generator = torch.Generator(device=self.pipeline.device).manual_seed(params["seed"])
                 else:
@@ -175,7 +177,7 @@ class MinimaxH3ImageGenerationEditAction(MinimaxH3ImageGenerationTaskAction):
                 # Passing `image` selects the `image_conditioned` workflow.
                 pipeline_params: Dict[str, Any] = {
                     "prompt":              prompt or "",
-                    "image":               references,
+                    "image":               images,
                     "height":              params["height"],
                     "width":               params["width"],
                     "min_generation_area": params["min_generation_area"],

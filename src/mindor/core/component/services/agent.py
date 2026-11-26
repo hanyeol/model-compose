@@ -18,8 +18,8 @@ class AgentAction(ComponentAction):
     def __init__(
         self,
         config: AgentActionConfig,
-        model_component: ComponentService,
-        model_config: ComponentRunConfig,
+        llm_component: ComponentService,
+        llm_call_config: ComponentRunConfig,
         tools: Dict[str, Union[WorkflowTool, ModelTool]],
         tool_schemas: List[Dict[str, Any]],
         instructions: Optional[str],
@@ -27,8 +27,8 @@ class AgentAction(ComponentAction):
     ):
         super().__init__(config)
 
-        self.model_component: ComponentService = model_component
-        self.model_config: ComponentRunConfig = model_config
+        self.llm_component: ComponentService = llm_component
+        self.llm_call_config: ComponentRunConfig = llm_call_config
         self.tools: Dict[str, Union[WorkflowTool, ModelTool]] = tools
         self.tool_schemas: List[Dict[str, Any]] = tool_schemas
         self.instructions: Optional[str] = instructions
@@ -47,25 +47,27 @@ class AgentAction(ComponentAction):
         if streaming:
             async def _stream_message_generator():
                 for _ in range(max_iteration_count):
-                    input = await self._render_model_input(context, messages, tools)
-                    response = await self.model_component.run(
-                        self.model_config.action,
+                    input = await self._render_llm_input(context, messages, tools)
+                    response = await self.llm_component.run(
+                        self.llm_call_config.action,
                         ulid.ulid(),
                         input,
                         workflow=context.workflow,
                         job_id=context.job_id
                     )
 
-                    assistant_message = await self._render_model_response(context, response)
+                    assistant_message = await self._render_llm_response(context, response)
                     messages.append(assistant_message)
                     await context.event_notifier.notify("internal", kind="message", output=assistant_message)
                     yield assistant_message
 
                     tool_calls = self._extract_tool_calls(assistant_message)
+
                     if not tool_calls:
                         break
 
                     tool_messages = await self._execute_tool_calls(tool_calls, context)
+
                     for tool_message in tool_messages:
                         messages.append(tool_message)
                         await context.event_notifier.notify("internal", kind="tool", output=tool_message)
@@ -74,24 +76,26 @@ class AgentAction(ComponentAction):
             return _stream_message_generator()
         else:
             for _ in range(max_iteration_count):
-                input = await self._render_model_input(context, messages, tools)
-                response = await self.model_component.run(
-                    self.model_config.action,
+                input = await self._render_llm_input(context, messages, tools)
+                response = await self.llm_component.run(
+                    self.llm_call_config.action,
                     ulid.ulid(),
                     input,
                     workflow=context.workflow,
                     job_id=context.job_id
                 )
 
-                assistant_message = await self._render_model_response(context, response)
+                assistant_message = await self._render_llm_response(context, response)
                 messages.append(assistant_message)
                 await context.event_notifier.notify("internal", kind="message", output=assistant_message)
 
                 tool_calls = self._extract_tool_calls(assistant_message)
+
                 if not tool_calls:
                     break
 
                 tool_messages = await self._execute_tool_calls(tool_calls, context)
+
                 for tool_message in tool_messages:
                     messages.append(tool_message)
                     await context.event_notifier.notify("internal", kind="tool", output=tool_message)
@@ -124,7 +128,7 @@ class AgentAction(ComponentAction):
             if block.get("type") == "tool_call"
         ]
 
-    async def _render_model_input(
+    async def _render_llm_input(
         self,
         context: ComponentActionContext,
         messages: List[Dict[str, Any]],
@@ -135,16 +139,16 @@ class AgentAction(ComponentAction):
         if tools:
             context.register_source("tools", tools)
 
-        return await context.render_variable(self.model_config.input)
+        return await context.render_variable(self.llm_call_config.input)
 
-    async def _render_model_response(
+    async def _render_llm_response(
         self,
         context: ComponentActionContext,
         response: Any
     ) -> Any:
-        if self.model_config.output:
+        if self.llm_call_config.output:
             context.register_source("output", response)
-            return await context.render_variable(self.model_config.output)
+            return await context.render_variable(self.llm_call_config.output)
 
         return response
 
@@ -172,6 +176,7 @@ class AgentAction(ComponentAction):
         external_blocks = iter(await self._execute_external_tool_calls(external_calls, context)) if external_calls else iter(())
 
         blocks: List[Dict[str, Any]] = []
+
         for tool_call, tool_kind in zip(tool_calls, tool_kinds):
             if tool_kind == "workflow":
                 blocks.append(next(workflow_blocks))
@@ -186,6 +191,7 @@ class AgentAction(ComponentAction):
                 })
 
         messages: List[Dict[str, Any]] = []
+
         for block in blocks:
             messages.extend(self._format_messages("tool", [block]))
 
@@ -288,12 +294,12 @@ class AgentComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self._model_component: Optional[ComponentService] = None
+        self._llm_component: Optional[ComponentService] = None
         self._tools: Optional[Dict[str, Union[WorkflowTool, ModelTool]]] = None
         self._tool_schemas: Optional[List[Dict[str, Any]]] = None
 
     async def _start(self) -> None:
-        self._model_component = self._create_component(self.config.model.component)
+        self._llm_component = self._create_component(self.config.llm.component)
         self._tools, self._tool_schemas = await self._generate_tools()
 
         await super()._start()
@@ -341,8 +347,8 @@ class AgentComponent(ComponentService):
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await AgentAction(
             action,
-            self._model_component,
-            self.config.model,
+            self._llm_component,
+            self.config.llm,
             self._tools,
             self._tool_schemas,
             self.config.instructions,

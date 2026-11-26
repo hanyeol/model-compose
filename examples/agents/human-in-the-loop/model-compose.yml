@@ -86,7 +86,7 @@ components:
       - Just call the tool directly. The system will pause and ask the user for approval before executing write or delete operations.
       - Use list_directory and read_file to understand the current state before making changes.
       - Never operate outside the paths the user specifies.
-    model:
+    llm:
       component: gpt-4o
       input:
         messages: ${messages}

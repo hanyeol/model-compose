@@ -130,7 +130,7 @@ components:
       - Prefer recent stages when the user asks for the latest or by date.
       - Deduplicate by stage when obvious — same group, same song, same broadcast date.
       - Do not invent videos. Only list what search_fancams actually returned.
-    model:
+    llm:
       component: gpt-4o
       input:
         messages: ${messages}

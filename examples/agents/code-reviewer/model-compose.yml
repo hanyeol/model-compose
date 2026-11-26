@@ -56,7 +56,7 @@ components:
   - id: code-reviewer
     type: agent
     instructions: You are a code review assistant. Explore the codebase by reading files, listing directories, and searching code, then provide a detailed review with improvement suggestions.
-    model:
+    llm:
       component: gpt-4o
       input:
         messages: ${messages}

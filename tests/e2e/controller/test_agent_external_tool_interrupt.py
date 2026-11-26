@@ -81,7 +81,7 @@ def _build_compose() -> ComposeConfig:
             {
                 "id": "agent",
                 "type": "agent",
-                "model": {
+                "llm": {
                     "component": "mock_llm",
                     "input": { "messages": "${messages}" },
                 },

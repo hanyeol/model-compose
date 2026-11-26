@@ -62,7 +62,7 @@ components:
   - id: assistant
     type: agent
     instructions: You are a versatile assistant with access to web search, weather, calculator, and clock tools. Use the appropriate tools to answer the user's question accurately.
-    model:
+    llm:
       component: gpt-4o
       input:
         messages: ${messages}

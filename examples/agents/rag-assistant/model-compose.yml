@@ -71,7 +71,7 @@ components:
   - id: rag-assistant
     type: agent
     instructions: You are a knowledge assistant. Search the knowledge base for relevant information to answer questions. Add new knowledge when the user provides information to remember.
-    model:
+    llm:
       component: gpt-4o
       action: chat
       input:

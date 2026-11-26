@@ -67,7 +67,7 @@ components:
       4. Use extract_links to get all URLs from a page when needed.
 
       Provide your analysis in a clear, well-organized format.
-    model:
+    llm:
       component: gpt-4o
       input:
         messages: ${messages}

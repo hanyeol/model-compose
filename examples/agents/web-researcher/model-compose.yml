@@ -45,7 +45,7 @@ components:
   - id: research-agent
     type: agent
     instructions: You are a web research assistant. Search the web and fetch pages to thoroughly research the given topic, then provide a comprehensive, well-organized answer.
-    model:
+    llm:
       component: gpt-4o
       input:
         messages: ${messages}

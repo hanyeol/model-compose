@@ -342,6 +342,8 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
             "imageio-ffmpeg>=0.5",
             "av>=11",
             "boto3",
+            "lpips",
+            "bitsandbytes",
             "Pillow>=10",
             "numpy>=1.24",
             "huggingface_hub>=0.25",
@@ -425,7 +427,7 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
             else:
                 # The spec swap must run before `load_components` so the
                 # swapped VAE class is what gets instantiated.
-                from lakonlab.models.architectures.diffusers.minimax_h3 import AutoencoderKLMiniMaxH3
+                from lakonlab.models.architectures.diffusers.pretrained import AutoencoderKLMiniMaxH3
 
                 vae_spec = pipeline.get_component_spec("vae")
                 vae_spec.type_hint = AutoencoderKLMiniMaxH3

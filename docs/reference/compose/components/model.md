@@ -31,7 +31,7 @@ component:
 | `precision` | string | `null` | Numerical precision: `auto`, `float32`, `float16`, `bfloat16` |
 | `quantization` | string/object | `null` | Quantization type shorthand (`int8`, `int4`, `fp4`, `nf4`) or `{ type, compute_dtype?, double_quant? }` |
 | `low_cpu_mem_usage` | boolean | `false` | Load model with minimal CPU RAM usage |
-| `peft_adapter` | array | `null` | PEFT adapters (e.g. LoRA) to load on top of the base model |
+| `peft_adapter` | array | `null` | PEFT adapters (e.g. LoRA) to register on top of the base model. Each entry declares `{ type, name, model }`; actions reference entries by `name` and supply the activation `weight` (see action-level `peft_adapter` below) |
 | `preload` | boolean | `true` | Load the model at startup |
 | `on_demand` | boolean/object | `false` | Enable on-demand loading; `true` uses defaults, or `{ priority, idle_timeout }` |
 | `runtime_spec` | object | `null` | Runtime hints — `{ vram, ram }` in MB |
@@ -78,6 +78,33 @@ model:
 |-------|------|---------|-------------|
 | `path` | string | **required** | Filesystem path to the model |
 | `format` | string | `pytorch` | Model file format: `pytorch`, `safetensors`, `onnx`, `gguf`, `tensorrt` |
+
+### PEFT Adapter Activation (Action-Level)
+
+Adapters declared on the component are inactive by default. Each action picks which registered adapters to activate — with their blend weights — via its own `peft_adapter` field. Omitting the field runs the action on the base model only.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `peft_adapter` | array | `null` | Adapters to activate for this action. Each entry must reference a `name` registered on the component |
+| `peft_adapter[].name` | string | **required** | Name of a `peft_adapter` registered on the component |
+| `peft_adapter[].weight` | float | `1.0` | Merge scale applied to this adapter's delta during the forward pass |
+
+```yaml
+component:
+  peft_adapter:
+    - type: lora
+      name: alpaca
+      model: tloen/alpaca-lora-7b
+    - type: lora
+      name: assistant
+      model: plncmm/guanaco-lora-7b
+  action:
+    peft_adapter:
+      - name: alpaca
+        weight: 0.7
+      - name: assistant
+        weight: 0.8
+```
 
 ## Task Types and Examples
 
@@ -3703,9 +3730,8 @@ Generate or edit music audio. The action selects an operation via the `method` f
 | `vae` | string/object | family-specific | VAE decoder model (`yue2` only). See the YuE2 family section |
 | `backend` | string | `torch` | Inference backend for the AR model (`yue2` only: `torch`, `torch-eager`, `vllm`) |
 | `quantization` | object | `null` | AR-model quantization (`yue2` only: `type: fp8`) |
-| `memory_budget_gib` | float | `24` | GPU memory budget in GiB reserved for generation (`yue2` only) |
+| `memory_budget` | float | `24` | GPU memory budget in GiB reserved for generation (`yue2` only) |
 | `cpu_offload` | string/array | `null` | Submodules to run on CPU (`yue2` only): `ar` moves the AR model during NAR synthesis, `vae` runs the VAE decoder on CPU. Accepts a single value or a list |
-| `verify_hashes` | bool | `true` | Verify model file checksums on load (`yue2` only) |
 | `model` | string | **required** | Local checkpoint directory (`ace-step`, `midi-ddsp`) or HuggingFace repo / local path (`yue2`, `minimax-music3`) |
 
 **Common Action Fields:**
@@ -3933,14 +3959,15 @@ M·A·P [YuE2](https://map-yue2.github.io/) full-song generation. A single AR–
 | `vae` | string/object | `m-a-p/YuE2-Vae` | VAE decoder model. String shorthand expands to `{ model: <value> }` |
 | `vae.model` | string/object | `m-a-p/YuE2-Vae` | VAE model identifier — HuggingFace repo ID or local path |
 | `vae.tile_size` | int | family-default | VAE decode tile size in frames; `512` for ≤12 GiB budgets, `1024` otherwise |
-| `nar` | string/object | `null` | NAR LoRA weights merged into the base pipeline. String shorthand expands to `{ model: <value> }`. When set, the checkpoint's LoRA deltas are folded into the AR model's NAR path (`nar_self_attn` + `nar_mlp`) and its `vae2llm` / `llm2vae` I/O projections replace the base modules. `null` keeps the stock NAR shipped with the AR model |
-| `nar.model` | string/object | **required** | NAR LoRA identifier — HuggingFace repo ID or local path. The reference Mothersuperior repo publishes several versioned pairs (`nar_lora_joint_v4`, `_v5`, `_v8`, `_v9`), so specify `filename` when pointing at a HuggingFace repo with multiple checkpoints |
+| `ar_adapter` | object/array | `null` | AR LoRA adapter(s) merged directly into the AR path's `self_attn` + `mlp` weights. Accepts a single entry or a list for stacking. The yue2 driver merges in place rather than routing through the `peft` library |
+| `ar_adapter[].model` | string/object | **required** | AR LoRA identifier — HuggingFace repo ID or local path. Both `.safetensors` (with `ar.layers.{i}.{proj}.lora_{A,B}` keys, e.g. exports from the yue2-lora-training recipe) and `.pt` checkpoints are accepted |
+| `ar_adapter[].weight` | float | `1.0` | Merge scale applied to the LoRA delta (`W += weight · B @ A`) |
+| `nar_adapter` | string/object | `null` | Optional LoRA + I/O projection patch applied to the NAR path. String shorthand expands to `{ model: <value> }`. When set, the checkpoint's LoRA deltas are folded into the AR model's NAR path (`nar_self_attn` + `nar_mlp`) and its `vae2llm` / `llm2vae` I/O projections replace the base modules. `null` keeps the stock NAR shipped with the AR model |
+| `nar_adapter.model` | string/object | **required** | NAR adapter identifier — HuggingFace repo ID or local path. The reference Mothersuperior repo publishes several versioned pairs (`nar_lora_joint_v4`, `_v5`, `_v8`, `_v9`), so specify `filename` when pointing at a HuggingFace repo with multiple checkpoints |
 | `backend` | string | `torch` | AR backend (`torch`, `torch-eager`, `vllm`). `vllm` requires the model's optional `[fast]` extras |
 | `quantization.type` | string | — | Only `fp8` is supported; halves AR VRAM at a small quality cost |
-| `memory_budget_gib` | float | `24` | GPU memory budget reserved for generation |
+| `memory_budget` | float | `24` | GPU memory budget in GiB reserved for generation |
 | `cpu_offload` | string/array | `null` | Submodules to run on CPU. `ar` moves the AR model to CPU during NAR synthesis to free VRAM. `vae` wraps the VAE decoder to run on CPU (workaround for MPS Conv1d `out_channels > 65536` on macOS < 15.1). Accepts a single value or a list of both |
-| `verify_hashes` | bool | `true` | Verify model file checksums on load |
-| `peft_adapter` | array | `null` | AR LoRA adapters merged into the base pipeline. Each item follows the [top-level `peft_adapter`](#component-settings) item schema and must set `type: lora`; other adapter types are rejected. `weight` acts as the merge scale (`W += weight · B @ A`); the yue2 driver merges directly into the AR path's `self_attn` + `mlp` weights rather than routing through the `peft` library |
 
 **Common Action Fields:**
 
@@ -4048,14 +4075,12 @@ component:
   family: yue2
   model: m-a-p/YuE2-3B
   device: cuda
-  nar:
+  nar_adapter:
     model:
       repository: Mothersuperior/yue2-mothersuperior-realaudio-tokenizer-v4
       filename: nar_lora_joint_v4.safetensors
-  peft_adapter:
-    - type: lora
-      name: my-artist
-      model: ./out/my-artist.safetensors
+  ar_adapter:
+    - model: ./out/my-artist.safetensors
       weight: 1.0
   action:
     method: generate

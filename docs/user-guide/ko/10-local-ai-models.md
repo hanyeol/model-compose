@@ -1803,7 +1803,7 @@ component:
 
 ### 10.3.31 music-generation
 
-음악 오디오를 생성하거나 편집합니다. 액션의 `method` 필드로 동작을 선택합니다 — 프롬프트로부터 새로 생성(MIDI 합성도 이 메서드를 사용), 기존 트랙을 새로운 스타일로 커버, 특정 구간 재생성, 뒤에 이어붙이기, 새 악기 레이어 추가, 보컬 전용 소스에 반주 만들기, 편집 가능한 ABC 스코어 계획. `driver: custom`을 사용하며 `family` 필드로 모델 계열을 선택합니다. ACE-Step은 `preset` 필드로 체크포인트 변형을 지정하고, YuE2는 `vae`, `backend`, `quantization`, `memory_budget_gib`, `cpu_offload`를 사용합니다. MiniMax-Music3는 백엔드 특화 파라미터 없이 구조화된 캡션과 섹션 태그 가사만으로 생성합니다.
+음악 오디오를 생성하거나 편집합니다. 액션의 `method` 필드로 동작을 선택합니다 — 프롬프트로부터 새로 생성(MIDI 합성도 이 메서드를 사용), 기존 트랙을 새로운 스타일로 커버, 특정 구간 재생성, 뒤에 이어붙이기, 새 악기 레이어 추가, 보컬 전용 소스에 반주 만들기, 편집 가능한 ABC 스코어 계획. `driver: custom`을 사용하며 `family` 필드로 모델 계열을 선택합니다. ACE-Step은 `preset` 필드로 체크포인트 변형을 지정하고, YuE2는 `vae`, `ar_adapter`, `nar_adapter`, `backend`, `quantization`, `memory_budget`, `cpu_offload`를 사용합니다. MiniMax-Music3는 백엔드 특화 파라미터 없이 구조화된 캡션과 섹션 태그 가사만으로 생성합니다.
 
 ```yaml
 component:
@@ -2297,7 +2297,9 @@ component:
 
 LoRA (Low-Rank Adaptation)는 전체 모델을 파인튜닝하지 않고 작은 어댑터 모듈을 추가하여 모델을 특정 태스크에 맞게 조정하는 기법입니다.
 
-### LoRA 어댑터 적용
+어댑터는 **등록 후 활성화** 모델을 따릅니다. 컴포넌트는 사용할 수 있는 어댑터(이름 + 소스)만 선언하고, 각 액션에서 활성화할 어댑터와 가중치를 선택합니다. 액션에 `peft_adapter` 필드가 없으면 베이스 모델만으로 추론합니다.
+
+### LoRA 어댑터 등록과 활성화
 
 ```yaml
 component:
@@ -2308,14 +2310,15 @@ component:
     - type: lora
       name: alpaca
       model: tloen/alpaca-lora-7b
-      weight: 1.0
   action:
     prompt: ${input.prompt as text}
+    peft_adapter:
+      - name: alpaca
 ```
 
 ### 다중 LoRA 어댑터
 
-여러 LoRA 어댑터를 동시에 적용할 수 있습니다:
+컴포넌트에 여러 어댑터를 등록해두고 액션마다 블렌딩합니다:
 
 ```yaml
 component:
@@ -2329,43 +2332,48 @@ component:
     - type: lora
       name: alpaca
       model: tloen/alpaca-lora-7b
-      weight: 0.7
     - type: lora
       name: assistant
       model: plncmm/guanaco-lora-7b
-      weight: 0.8
   action:
     prompt: ${input.prompt as text}
+    peft_adapter:
+      - name: alpaca
+        weight: 0.7
+      - name: assistant
+        weight: 0.8
 ```
 
 ### 어댑터 가중치
 
-`weight` 파라미터로 어댑터의 영향력을 조절합니다:
+액션 레벨 `weight` 파라미터로 각 어댑터의 영향력을 조절합니다:
 
 ```yaml
-peft_adapter:
-  - type: lora
-    name: style-adapter
-    model: user/style-lora
-    weight: 0.5  # 50% 영향력
+action:
+  peft_adapter:
+    - name: style-adapter
+      weight: 0.5  # 50% 영향력
 ```
 
-- `weight: 0.0`: 어댑터 비활성화
+- `weight: 0.0`: 사실상 어댑터 비활성화
 - `weight: 0.5`: 50% 적용
 - `weight: 1.0`: 100% 적용 (기본값)
 
 ### 로컬 LoRA 어댑터
 
-로컬 파일 시스템의 어댑터 사용:
+로컬 경로로 어댑터를 등록하고 액션에서 참조합니다:
 
 ```yaml
-peft_adapter:
-  - type: lora
-    name: custom-lora
-    model:
-      provider: local
-      path: /path/to/lora/adapter
-    weight: 1.0
+component:
+  peft_adapter:
+    - type: lora
+      name: custom-lora
+      model:
+        provider: local
+        path: /path/to/lora/adapter
+  action:
+    peft_adapter:
+      - name: custom-lora
 ```
 
 ### LoRA 사용 사례
@@ -2373,35 +2381,46 @@ peft_adapter:
 **1. 도메인 적응**
 ```yaml
 # 의료 도메인에 특화된 모델
-peft_adapter:
-  - type: lora
-    name: medical
-    model: medalpaca/medalpaca-lora-7b
-    weight: 1.0
+component:
+  peft_adapter:
+    - type: lora
+      name: medical
+      model: medalpaca/medalpaca-lora-7b
+  action:
+    peft_adapter:
+      - name: medical
 ```
 
 **2. 스타일 제어**
 ```yaml
 # 여러 작문 스타일 조합
-peft_adapter:
-  - type: lora
-    name: formal
-    model: user/formal-writing-lora
-    weight: 0.6
-  - type: lora
-    name: technical
-    model: user/technical-lora
-    weight: 0.4
+component:
+  peft_adapter:
+    - type: lora
+      name: formal
+      model: user/formal-writing-lora
+    - type: lora
+      name: technical
+      model: user/technical-lora
+  action:
+    peft_adapter:
+      - name: formal
+        weight: 0.6
+      - name: technical
+        weight: 0.4
 ```
 
 **3. 다국어 지원**
 ```yaml
 # 한국어 지원 강화
-peft_adapter:
-  - type: lora
-    name: korean
-    model: beomi/llama-2-ko-7b-lora
-    weight: 1.0
+component:
+  peft_adapter:
+    - type: lora
+      name: korean
+      model: beomi/llama-2-ko-7b-lora
+  action:
+    peft_adapter:
+      - name: korean
 ```
 
 ---

@@ -1803,7 +1803,7 @@ component:
 
 ### 10.3.31 music-generation
 
-生成或编辑音乐音频。动作的 `method` 字段用于选择操作 —— 从提示词从头生成（同时也用于 MIDI 合成）、以新风格翻唱现有曲目、重写指定区间、在结尾之后延续、在源音频上叠加新乐器层、为纯人声源生成伴奏、规划可编辑的 ABC 乐谱。使用 `driver: custom`，通过 `family` 字段选择模型系列；ACE-Step 需要 `preset` 字段选择检查点变体，YuE2 使用 `vae`、`backend`、`quantization`、`memory_budget_gib` 和 `cpu_offload`。MiniMax-Music3 不需要任何后端特定参数，仅用结构化描述文本加上带段落标签的歌词生成。
+生成或编辑音乐音频。动作的 `method` 字段用于选择操作 —— 从提示词从头生成（同时也用于 MIDI 合成）、以新风格翻唱现有曲目、重写指定区间、在结尾之后延续、在源音频上叠加新乐器层、为纯人声源生成伴奏、规划可编辑的 ABC 乐谱。使用 `driver: custom`，通过 `family` 字段选择模型系列；ACE-Step 需要 `preset` 字段选择检查点变体，YuE2 使用 `vae`、`ar_adapter`、`nar_adapter`、`backend`、`quantization`、`memory_budget` 和 `cpu_offload`。MiniMax-Music3 不需要任何后端特定参数，仅用结构化描述文本加上带段落标签的歌词生成。
 
 ```yaml
 component:
@@ -2297,7 +2297,9 @@ component:
 
 LoRA（低秩适应）是一种通过添加小型适配器模块来将模型适应特定任务的技术，无需微调整个模型。
 
-### 应用 LoRA 适配器
+适配器采用**注册后激活**模型：组件仅声明可用的适配器（名称 + 来源），每个动作选择要激活的适配器及其权重。动作中省略 `peft_adapter` 字段时，仅使用基础模型进行推理。
+
+### 注册并激活 LoRA 适配器
 
 ```yaml
 component:
@@ -2308,14 +2310,15 @@ component:
     - type: lora
       name: alpaca
       model: tloen/alpaca-lora-7b
-      weight: 1.0
   action:
     prompt: ${input.prompt as text}
+    peft_adapter:
+      - name: alpaca
 ```
 
 ### 多个 LoRA 适配器
 
-可以同时应用多个 LoRA 适配器：
+在组件上注册多个适配器，并在每个动作中进行混合：
 
 ```yaml
 component:
@@ -2329,43 +2332,48 @@ component:
     - type: lora
       name: alpaca
       model: tloen/alpaca-lora-7b
-      weight: 0.7
     - type: lora
       name: assistant
       model: plncmm/guanaco-lora-7b
-      weight: 0.8
   action:
     prompt: ${input.prompt as text}
+    peft_adapter:
+      - name: alpaca
+        weight: 0.7
+      - name: assistant
+        weight: 0.8
 ```
 
 ### 适配器权重
 
-使用 `weight` 参数控制适配器影响：
+在动作级别使用 `weight` 参数控制每个适配器的影响：
 
 ```yaml
-peft_adapter:
-  - type: lora
-    name: style-adapter
-    model: user/style-lora
-    weight: 0.5  # 50% 影响
+action:
+  peft_adapter:
+    - name: style-adapter
+      weight: 0.5  # 50% 影响
 ```
 
-- `weight: 0.0`：禁用适配器
+- `weight: 0.0`：实际上禁用适配器
 - `weight: 0.5`：应用 50%
 - `weight: 1.0`：应用 100%（默认）
 
 ### 本地 LoRA 适配器
 
-使用本地文件系统中的适配器：
+在组件中用本地路径注册适配器，然后在动作中按名称引用：
 
 ```yaml
-peft_adapter:
-  - type: lora
-    name: custom-lora
-    model:
-      provider: local
-      path: /path/to/lora/adapter
-    weight: 1.0
+component:
+  peft_adapter:
+    - type: lora
+      name: custom-lora
+      model:
+        provider: local
+        path: /path/to/lora/adapter
+  action:
+    peft_adapter:
+      - name: custom-lora
 ```
 
 ### LoRA 用例
@@ -2373,35 +2381,46 @@ peft_adapter:
 **1. 领域适应**
 ```yaml
 # 医疗领域专用模型
-peft_adapter:
-  - type: lora
-    name: medical
-    model: medalpaca/medalpaca-lora-7b
-    weight: 1.0
+component:
+  peft_adapter:
+    - type: lora
+      name: medical
+      model: medalpaca/medalpaca-lora-7b
+  action:
+    peft_adapter:
+      - name: medical
 ```
 
 **2. 风格控制**
 ```yaml
 # 结合多种写作风格
-peft_adapter:
-  - type: lora
-    name: formal
-    model: user/formal-writing-lora
-    weight: 0.6
-  - type: lora
-    name: technical
-    model: user/technical-lora
-    weight: 0.4
+component:
+  peft_adapter:
+    - type: lora
+      name: formal
+      model: user/formal-writing-lora
+    - type: lora
+      name: technical
+      model: user/technical-lora
+  action:
+    peft_adapter:
+      - name: formal
+        weight: 0.6
+      - name: technical
+        weight: 0.4
 ```
 
 **3. 多语言支持**
 ```yaml
 # 增强韩语支持
-peft_adapter:
-  - type: lora
-    name: korean
-    model: beomi/llama-2-ko-7b-lora
-    weight: 1.0
+component:
+  peft_adapter:
+    - type: lora
+      name: korean
+      model: beomi/llama-2-ko-7b-lora
+  action:
+    peft_adapter:
+      - name: korean
 ```
 
 ---

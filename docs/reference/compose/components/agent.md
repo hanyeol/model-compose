@@ -7,7 +7,7 @@ The agent component builds autonomous AI agents that use workflows (and optional
 ```yaml
 component:
   type: agent
-  model:
+  llm:
     component: gpt-4o
     input:
       messages: ${messages}
@@ -20,7 +20,7 @@ component:
     prompt: ${input.question}
 ```
 
-The `model`, `instructions`, and `tools` fields are component-level and shared by every action. Each action defines its own `prompt` and may override `max_iteration_count`.
+The `llm`, `instructions`, and `tools` fields are component-level and shared by every action. Each action defines its own `prompt` and may override `max_iteration_count`.
 
 ## Configuration Options
 
@@ -29,7 +29,7 @@ The `model`, `instructions`, and `tools` fields are component-level and shared b
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `agent` |
-| `model` | object | **required** | LLM backend used by every action (see [Model Configuration](#model-configuration)) |
+| `llm` | object | **required** | LLM backend used by every action (see [LLM Configuration](#llm-configuration)) |
 | `instructions` | string | `null` | System-message text that sets the agent's persona and behavior. When set, a `system` message is prepended to the conversation. |
 | `tools` | array | `[]` | Workflow IDs or inline tool schemas the agent may call (see [Tool Configuration](#tool-configuration)) |
 | `max_iteration_count` | integer | `32` | Maximum number of ReAct loop iterations before the agent halts |
@@ -46,11 +46,11 @@ Agent actions support the following options:
 | `streaming` | bool/string | `false` | When true, the loop yields each assistant/tool message as it is produced |
 | `output` | any | `null` | Output mapping that transforms and extracts values from the final message list |
 
-If `prompt` is omitted, no `user` message is added — the first model call will contain only the `system` message from `instructions` (if any). Most chat templates require a `user` turn, so set `prompt` unless the upstream `model.component` already injects one.
+If `prompt` is omitted, no `user` message is added — the first model call will contain only the `system` message from `instructions` (if any). Most chat templates require a `user` turn, so set `prompt` unless the upstream `llm.component` already injects one.
 
-### Model Configuration
+### LLM Configuration
 
-The `model` object specifies which component handles LLM calls:
+The `llm` object specifies which component handles LLM calls:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -59,9 +59,9 @@ The `model` object specifies which component handles LLM calls:
 | `input` | object | `{}` | Input mapping from the agent's internal state to the component's input fields |
 | `output` | any | `null` | Output mapping that shapes the component's response into a [canonical assistant message](../chat-completion-message.md) |
 
-### Model Input Variables
+### LLM Input Variables
 
-The `model.input` mapping supports the following variables:
+The `llm.input` mapping supports the following variables:
 
 | Variable | Type | Description |
 |----------|------|-------------|
@@ -90,7 +90,7 @@ components:
 
   - id: research-agent
     type: agent
-    model:
+    llm:
       component: gpt-4o
       input:
         messages: ${messages}
@@ -131,12 +131,12 @@ workflows:
 
 ### Multi-Action Agent
 
-A single `agent` component shares `model`, `instructions`, and `tools` across all its actions; each action supplies its own `prompt` and may override `max_iteration_count`.
+A single `agent` component shares `llm`, `instructions`, and `tools` across all its actions; each action supplies its own `prompt` and may override `max_iteration_count`.
 
 ```yaml
 component:
   type: agent
-  model:
+  llm:
     component: gpt-4o
     input:
       messages: ${messages}
@@ -165,7 +165,7 @@ An agent can operate without tools for single-turn inference:
 ```yaml
 component:
   type: agent
-  model:
+  llm:
     component: gpt-4o
     input:
       messages: ${messages}
@@ -177,12 +177,12 @@ component:
 
 ### Streaming Agent
 
-Set `streaming: true` to receive each assistant/tool message as the ReAct loop produces it. This streams whole messages, not tokens — token streaming on the underlying `model.component` is independent (see [user-guide/13-streaming-mode.md](../../../user-guide/13-streaming-mode.md)).
+Set `streaming: true` to receive each assistant/tool message as the ReAct loop produces it. This streams whole messages, not tokens — token streaming on the underlying `llm.component` is independent (see [user-guide/13-streaming-mode.md](../../../user-guide/13-streaming-mode.md)).
 
 ```yaml
 component:
   type: agent
-  model:
+  llm:
     component: gpt-4o
     input:
       messages: ${messages}
@@ -250,7 +250,7 @@ The workflow above generates this schema (as passed to the model via `${tools}`)
 }
 ```
 
-This is a flat `{name, description, parameters}` object (no `{"type": "function", "function": {...}}` wrapper). If your provider needs the wrapped shape, add it in the model component's `body` mapping, e.g. `tools: [{ type: function, function: ${item} } for item in ${input.tools}]`.
+This is a flat `{name, description, parameters}` object (no `{"type": "function", "function": {...}}` wrapper). If your provider needs the wrapped shape, add it in the LLM component's `body` mapping, e.g. `tools: [{ type: function, function: ${item} } for item in ${input.tools}]`.
 
 ### Inline Tool Schema
 
@@ -276,8 +276,8 @@ tools:
 The agent follows this execution cycle:
 
 1. **Build initial messages**: Start a `messages` list containing a `system` message (from `instructions`, if set) and a `user` message (from `action.prompt`, if set).
-2. **Call LLM**: Send the full `messages` and tool schemas to `model.component`.
-3. **Append assistant message**: The response is reshaped by `model.output` into a canonical assistant message and appended to `messages`.
+2. **Call LLM**: Send the full `messages` and tool schemas to `llm.component`.
+3. **Append assistant message**: The response is reshaped by `llm.output` into a canonical assistant message and appended to `messages`.
 4. **Check for tool calls**: If the assistant message contains any `tool_call` blocks, continue; otherwise return.
 5. **Execute tools**: Workflow tool calls run concurrently via workflow execution. Inline (external) tool calls pause the agent at an interrupt point until the caller resumes with results.
 6. **Append tool results**: Each tool call produces a `tool` message with a `tool_result` block; these are appended to `messages`.
@@ -289,15 +289,15 @@ Every iteration re-sends the full conversation to the model, including the origi
 
 When the assistant message contains multiple `tool_call` blocks, workflow tools execute concurrently via `asyncio.gather`. Each tool result is appended as its own `tool` message (one `tool_result` per message) to preserve stateless mapping downstream.
 
-### Model Component Contract
+### LLM Component Contract
 
-The `model.component` is invoked with:
+The `llm.component` is invoked with:
 
 - `${messages}` — list of canonical messages (full history, re-sent every call)
 - `${tools}` — list of tool schemas (omitted when the agent has no tools)
-- Any additional variables wired in `model.input`
+- Any additional variables wired in `llm.input`
 
-It must return a response that, after applying `model.output`, matches a canonical assistant message:
+It must return a response that, after applying `llm.output`, matches a canonical assistant message:
 
 ```yaml
 role: assistant
@@ -339,7 +339,7 @@ Agent components support dynamic configuration:
 ```yaml
 component:
   type: agent
-  model:
+  llm:
     component: ${env.DEFAULT_LLM | gpt-4o}
     input:
       messages: ${messages}
@@ -359,7 +359,7 @@ component:
 2. **Iteration Limits**: Set appropriate `max_iteration_count` to prevent infinite loops and control costs
 3. **Model Selection**: Choose model components that support function calling (e.g., GPT-4o, Claude, Llama 3.1+)
 4. **Instructions**: Use component-level `instructions` to define the agent's role; keep action `prompt`s focused on the per-invocation task
-5. **Output Mapping**: Translate the provider's response into the canonical assistant shape via `model.output` — see [Chat Completion Message](../chat-completion-message.md)
+5. **Output Mapping**: Translate the provider's response into the canonical assistant shape via `llm.output` — see [Chat Completion Message](../chat-completion-message.md)
 6. **Tool Granularity**: Keep tools focused on single responsibilities for better agent reasoning
 7. **Error Handling**: Tools should return descriptive error messages; the agent surfaces them as `tool_result` blocks with `is_error: true`
 

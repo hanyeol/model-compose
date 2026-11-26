@@ -1,6 +1,6 @@
 [project]
 name = "model-compose"
-version = "0.4.126"
+version = "0.4.127"
 description = "model-compose: Declarative AI Workflow Orchestrator"
 authors = [
     { name = "Hanyeol Cho", email = "hanyeol.cho@gmail.com" }

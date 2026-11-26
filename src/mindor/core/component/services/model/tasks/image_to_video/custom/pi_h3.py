@@ -473,11 +473,9 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
                     pipeline.transformer.requires_grad_(False)
                     quantize_frozen_linears(pipeline.transformer, exclude_keys=list(_PI_H3_VAE_TRANSFORMER_FP8_EXCLUDE_KEYS))
 
-                text_encoder = getattr(pipeline, "text_encoder", None)
-
-                if text_encoder is not None:
-                    text_encoder.requires_grad_(False)
-                    quantize_frozen_linears(text_encoder, exclude_keys=list(_PI_H3_TEXT_ENCODER_FP8_EXCLUDE_KEYS))
+                if getattr(pipeline, "text_encoder", None) is not None:
+                    pipeline.text_encoder.requires_grad_(False)
+                    quantize_frozen_linears(pipeline.text_encoder, exclude_keys=list(_PI_H3_TEXT_ENCODER_FP8_EXCLUDE_KEYS))
 
             if manager is not None:
                 manager.enable_auto_cpu_offload(

@@ -341,6 +341,7 @@ class PiH3ImageToVideoTaskDriver(ModelTaskDriver):
             "imageio>=2.34",
             "imageio-ffmpeg>=0.5",
             "av>=11",
+            "boto3",
             "Pillow>=10",
             "numpy>=1.24",
             "huggingface_hub>=0.25",

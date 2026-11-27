@@ -5,7 +5,7 @@ from typing import Tuple, Type, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 
 from mindor.dsl.schema.action import ModelActionConfig, AnimateDiffHuggingfaceVideoToVideoModelActionConfig
-from mindor.dsl.schema.component import ModelConfig, ModelSubmoduleConfig
+from mindor.dsl.schema.component import ModelSubmoduleConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.video import VideoStreamResource, encode_frames_to_mp4
@@ -356,17 +356,17 @@ class AnimateDiffHuggingfaceVideoToVideoTaskDriver(HuggingfaceVideoToVideoBaseDr
             submodules["image_encoder"] = await self._load_pretrained_image_encoder(image_encoder, device, dtype)
 
         if self.config.controlnet:
-            submodules["controlnet"] = await self._load_pretrained_controlnet_models(self.config.controlnet, device, dtype)
+            submodules["controlnet"] = await self._load_pretrained_controlnets(self.config.controlnet, device, dtype)
 
         return submodules
 
     async def _load_pretrained_motion_adapter(
         self,
-        motion_adapter: ModelConfig,
+        config: ModelSubmoduleConfig,
         device: torch.device,
         dtype: torch.dtype,
     ) -> Any:
-        adapter_path = await self._provision_model(motion_adapter)
+        adapter_path = await self._provision_model(config.model)
 
         def _load() -> Any:
             from diffusers import MotionAdapter
@@ -374,8 +374,8 @@ class AnimateDiffHuggingfaceVideoToVideoTaskDriver(HuggingfaceVideoToVideoBaseDr
             logging.info(f"Component '{self.id}': loading {MotionAdapter.__name__} from {adapter_path}")
 
             params: Dict[str, Any] = {
-                **self._get_model_params(motion_adapter),
-                "torch_dtype": dtype,
+                **self._get_model_params(config.model),
+                **self._get_model_options(config, default_dtype=dtype),
             }
 
             return MotionAdapter.from_pretrained(adapter_path, **params).to(device)
@@ -384,11 +384,11 @@ class AnimateDiffHuggingfaceVideoToVideoTaskDriver(HuggingfaceVideoToVideoBaseDr
 
     async def _load_pretrained_image_encoder(
         self,
-        image_encoder: ModelSubmoduleConfig,
+        config: ModelSubmoduleConfig,
         device: torch.device,
         dtype: torch.dtype,
     ) -> Any:
-        encoder_path = await self._provision_model(image_encoder.model)
+        encoder_path = await self._provision_model(config.model)
 
         def _load() -> Any:
             from transformers import CLIPVisionModelWithProjection
@@ -396,8 +396,8 @@ class AnimateDiffHuggingfaceVideoToVideoTaskDriver(HuggingfaceVideoToVideoBaseDr
             logging.info(f"Component '{self.id}': loading {CLIPVisionModelWithProjection.__name__} from {encoder_path}")
 
             params: Dict[str, Any] = {
-                **self._get_model_params(image_encoder.model),
-                **self._get_model_options(image_encoder, default_dtype=dtype),
+                **self._get_model_params(config.model),
+                **self._get_model_options(config, default_dtype=dtype),
             }
 
             return CLIPVisionModelWithProjection.from_pretrained(encoder_path, **params).to(device)
@@ -475,7 +475,7 @@ class AnimateDiffHuggingfaceVideoToVideoTaskDriver(HuggingfaceVideoToVideoBaseDr
         from diffusers import AnimateDiffVideoToVideoPipeline
         return AnimateDiffVideoToVideoPipeline
 
-    def _get_controlnet_model_class(self) -> Type[Any]:
+    def _get_controlnet_class(self) -> Type[Any]:
         from diffusers import ControlNetModel
         return ControlNetModel
 

@@ -71,24 +71,24 @@ class HuggingfaceVideoToVideoBaseDriver(HuggingfaceDiffusionPipelineTaskDriver[N
     def _get_torch_requirements(self) -> List[str]:
         return torch_requirements("torch", "torchaudio")
 
-    async def _load_pretrained_controlnet_models(
+    async def _load_pretrained_controlnets(
         self,
-        controlnets: List[ModelSubmoduleConfig],
+        configs: List[ModelSubmoduleConfig],
         device: torch.device,
         dtype: torch.dtype,
     ) -> Any:
-        model_class = self._get_controlnet_model_class()
-        model_paths = [ await self._provision_model(controlnet.model) for controlnet in controlnets ]
+        model_class = self._get_controlnet_class()
+        model_paths = [ await self._provision_model(config.model) for config in configs ]
 
         def _load() -> Any:
             models: List[Any] = []
 
-            for controlnet, model_path in zip(controlnets, model_paths):
+            for config, model_path in zip(configs, model_paths):
                 logging.info(f"Component '{self.id}': loading {model_class.__name__} from {model_path}")
 
                 params: Dict[str, Any] = {
-                    **self._get_model_params(controlnet.model),
-                    **self._get_model_options(controlnet, default_dtype=dtype),
+                    **self._get_model_params(config.model),
+                    **self._get_model_options(config, default_dtype=dtype),
                 }
 
                 models.append(model_class.from_pretrained(model_path, **params).to(device))
@@ -99,5 +99,5 @@ class HuggingfaceVideoToVideoBaseDriver(HuggingfaceDiffusionPipelineTaskDriver[N
 
         return await self._run_in_executor(_load)
 
-    def _get_controlnet_model_class(self) -> Type[Any]:
+    def _get_controlnet_class(self) -> Type[Any]:
         raise ValueError(f"ControlNet is not supported for architecture: {self.config.architecture}")

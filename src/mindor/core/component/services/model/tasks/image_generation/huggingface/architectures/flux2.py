@@ -90,7 +90,7 @@ class Flux2HuggingfaceImageGenerationTaskDriver(HuggingfaceImageGenerationBaseDr
     def _get_quantizable_components(self) -> List[str]:
         return [ "transformer", "text_encoder" ]
 
-    def _get_vae_model_class(self) -> Type[Any]:
+    def _get_vae_class(self) -> Type[Any]:
         from diffusers import AutoencoderKLFlux2
         return AutoencoderKLFlux2
 

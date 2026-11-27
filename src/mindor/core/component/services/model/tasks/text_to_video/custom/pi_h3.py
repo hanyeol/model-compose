@@ -507,10 +507,10 @@ class PiH3TextToVideoTaskDriver(ModelTaskDriver):
 
     async def _load_pretrained_text_encoder(
         self,
-        text_encoder_config: ModelSubmoduleConfig,
+        config: ModelSubmoduleConfig,
         model_path: str,
     ) -> PreTrainedModel:
-        model_path = await self._provision_model(text_encoder_config.model)
+        model_path = await self._provision_model(config.model)
 
         def _load() -> PreTrainedModel:
             from transformers import Qwen3VLForConditionalGeneration
@@ -520,12 +520,12 @@ class PiH3TextToVideoTaskDriver(ModelTaskDriver):
 
             params: Dict[str, Any] = {}
 
-            if text_encoder_config.precision is not None:
-                params["torch_dtype"] = self._resolve_torch_dtype(text_encoder_config.precision)
+            if config.precision is not None:
+                params["torch_dtype"] = self._resolve_torch_dtype(config.precision)
             else:
                 params["torch_dtype"] = torch.bfloat16
 
-            if text_encoder_config.low_cpu_mem_usage:
+            if config.low_cpu_mem_usage:
                 params["low_cpu_mem_usage"] = True
 
             return Qwen3VLForConditionalGeneration.from_pretrained(model_path, **params)

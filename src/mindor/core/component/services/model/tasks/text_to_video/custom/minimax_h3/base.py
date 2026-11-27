@@ -470,14 +470,14 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
 
     async def _load_pretrained_text_encoder(
         self,
-        text_encoder_config: Optional[ModelSubmoduleConfig],
+        config: Optional[ModelSubmoduleConfig],
         model_path: str,
         quantization: Optional[ModelQuantizationConfig],
     ) -> PreTrainedModel:
         model_subfolder: Optional[str] = None
 
-        if text_encoder_config is not None:
-            model_path = await self._provision_model(text_encoder_config.model)
+        if config is not None:
+            model_path = await self._provision_model(config.model)
         else:
             model_subfolder = "text_encoder"
 
@@ -489,12 +489,12 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
 
             params: Dict[str, Any] = {}
 
-            if text_encoder_config is not None and text_encoder_config.precision is not None:
-                params["torch_dtype"] = self._resolve_torch_dtype(text_encoder_config.precision)
+            if config is not None and config.precision is not None:
+                params["torch_dtype"] = self._resolve_torch_dtype(config.precision)
             else:
                 params["torch_dtype"] = torch.bfloat16
 
-            if text_encoder_config is not None and text_encoder_config.low_cpu_mem_usage:
+            if config is not None and config.low_cpu_mem_usage:
                 params["low_cpu_mem_usage"] = True
 
             if model_subfolder is not None:
@@ -513,14 +513,14 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
 
     async def _load_pretrained_transformer(
         self,
-        transformer_config: Optional[ModelSubmoduleConfig],
+        config: Optional[ModelSubmoduleConfig],
         model_path: str,
         quantization: Optional[ModelQuantizationConfig],
     ) -> Any:
         model_subfolder: Optional[str] = None
 
-        if transformer_config is not None:
-            model_path = await self._provision_model(transformer_config.model)
+        if config is not None:
+            model_path = await self._provision_model(config.model)
         else:
             model_subfolder = "transformer"
 
@@ -532,12 +532,12 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
 
             params: Dict[str, Any] = {}
 
-            if transformer_config is not None and transformer_config.precision is not None:
-                params["torch_dtype"] = self._resolve_torch_dtype(transformer_config.precision)
+            if config is not None and config.precision is not None:
+                params["torch_dtype"] = self._resolve_torch_dtype(config.precision)
             else:
                 params["torch_dtype"] = torch.bfloat16
 
-            if transformer_config is not None and transformer_config.low_cpu_mem_usage:
+            if config is not None and config.low_cpu_mem_usage:
                 params["low_cpu_mem_usage"] = True
 
             if model_subfolder is not None:

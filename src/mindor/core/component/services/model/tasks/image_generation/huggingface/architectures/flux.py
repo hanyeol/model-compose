@@ -166,11 +166,11 @@ class FluxHuggingfaceImageGenerationTaskDriver(HuggingfaceImageGenerationBaseDri
         # text_encoder_2 is T5-XXL (~9GB fp16); biggest single win after transformer.
         return [ "transformer", "text_encoder_2" ]
 
-    def _get_vae_model_class(self) -> Type[Any]:
+    def _get_vae_class(self) -> Type[Any]:
         from diffusers import AutoencoderKL
         return AutoencoderKL
 
-    def _get_controlnet_model_class(self) -> Type[Any]:
+    def _get_controlnet_class(self) -> Type[Any]:
         from diffusers import FluxControlNetModel
         return FluxControlNetModel
 

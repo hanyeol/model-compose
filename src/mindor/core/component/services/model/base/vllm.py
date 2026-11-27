@@ -89,6 +89,7 @@ class VllmModelTaskDriver(ModelTaskDriver):
                     shutdown()
             except Exception:
                 pass
+
             self.engine = None
 
         self.engine_args = None

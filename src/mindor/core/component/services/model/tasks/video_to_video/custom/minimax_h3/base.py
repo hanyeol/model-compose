@@ -458,7 +458,7 @@ class MinimaxH3VideoToVideoBaseDriver(ModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         requirements: List[Union[str, Tuple[str, List[str]]]] = [
             *torch_requirements("torch", "torchvision"),
-            "diffusers>=0.36",
+            "diffusers>=0.40",
             "transformers>=4.45",
             "accelerate>=0.34",
             "safetensors>=0.4",

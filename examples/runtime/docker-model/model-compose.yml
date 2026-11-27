@@ -29,11 +29,12 @@ component:
   max_concurrent_count: 1
   runtime:
     type: docker
-    environment:
-      TOKENIZERS_PARALLELISM: "false"
-    volumes:
-      # Persist HuggingFace cache across container restarts.
-      - ./.hf-cache:/root/.cache/huggingface
+    container:
+      environment:
+        TOKENIZERS_PARALLELISM: "false"
+      volumes:
+        # Persist HuggingFace cache across container restarts.
+        - ./.hf-cache:/root/.cache/huggingface
   action:
     text: ${input.text}
     return_probabilities: true

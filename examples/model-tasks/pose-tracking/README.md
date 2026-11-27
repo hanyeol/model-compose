@@ -11,7 +11,7 @@ This workflow provides local pose tracking that:
 3. **Identity Tracking**: Uses YOLO's built-in tracker (ByteTrack or BoT-SORT) to keep the same person on a stable `track_id` across frames
 4. **Segments**: Aggregates per-frame timestamps into merged `start_time / end_time / duration` segments per person
 5. **Representative Pose**: Each segment carries the keypoints (and optionally the skeleton image) of its highest-scoring frame
-6. **Automatic Model Management**: Downloads the YOLOv8-pose checkpoint on first run into `~/.cache/models/ultralytics` and reuses it thereafter
+6. **Automatic Model Management**: Downloads the YOLOv8-pose checkpoint on first run into `~/.cache/mindor/models/ultralytics` and reuses it thereafter
 
 ## Preparation
 
@@ -82,7 +82,7 @@ Unlike face tracking, human pose has no identity embedding by default. Instead, 
 - **Features**:
   - Detects poses per frame and assigns each detection a tracker id via ByteTrack / BoT-SORT
   - Aggregates same-id detections into per-track segments (`start_time / end_time / duration`) in H:MM:SS.mmm timecode form
-  - Emits COCO 17-point keypoints and, optionally, OpenPose BODY_18 keypoints and a rendered skeleton image
+  - Emits keypoints in either COCO 17-point (natural) or OpenPose BODY_18 (ControlNet-ready) layout, selectable via `skeleton_format`, plus an optional rendered skeleton image
   - Serial execution (`max_concurrent_count: 1`) to keep GPU memory bounded and tracker state coherent
 
 ### Model Information: YOLOv8-pose (Ultralytics)
@@ -126,10 +126,9 @@ graph TD
 | `min_confidence` | number | No | 0.4 | Minimum YOLO detection confidence (0.0 - 1.0). Detections below this score never reach the tracker |
 | `min_frame_count` | number | No | 3 | Discard tracks that appear in fewer than this many sampled frames |
 | `merge_gap` | number | No | 1.0 | Merge adjacent segments separated by less than this many seconds |
-| `return_keypoints` | boolean | No | true | Return the representative frame's 17 COCO keypoints per segment |
-| `return_openpose_keypoints` | boolean | No | false | Return the representative frame's OpenPose BODY_18 keypoints per segment |
+| `return_keypoints` | boolean | No | true | Return the representative frame's keypoints per segment (layout determined by `skeleton_format`) |
 | `return_skeleton_image` | boolean | No | false | Render a skeleton image on a black canvas for each segment's representative frame |
-| `skeleton_format` | string | No | `natural` | Skeleton layout: `natural` (COCO 17-point) or `openpose` (BODY_18, ControlNet-ready) |
+| `skeleton_format` | string | No | `natural` | Skeleton topology shared by keypoints and the skeleton image: `natural` (COCO 17-point) or `openpose` (BODY_18, ControlNet-ready) |
 
 Note: the tracker is fed at the *sampled* fps, not the source fps. If you set `frame_interval=5` on a 30 fps source, use `sampled_frame_rate=6.0`. A wrong value doesn't break tracking but shifts all reported timestamps proportionally.
 
@@ -160,8 +159,7 @@ Each `segments[j]` entry:
 | `duration` | string | `end_time - start_time` in `H:MM:SS.mmm` timecode |
 | `score` | number | Detection confidence of the representative frame for this segment (the highest-scoring frame within the segment) |
 | `bounding_box` | object | `{x, y, width, height}` in pixel coordinates, from the representative frame |
-| `keypoints` | array | 17 COCO keypoints `{x, y, visibility}` from the representative frame. Present only when `return_keypoints` is enabled |
-| `openpose_keypoints` | array | OpenPose BODY_18 keypoints from the representative frame. Present only when `return_openpose_keypoints` is enabled |
+| `keypoints` | array | Keypoints `{x, y, visibility}` from the representative frame (17 COCO points when `skeleton_format=natural`, 18 OpenPose BODY points when `skeleton_format=openpose`). Present only when `return_keypoints` is enabled |
 | `skeleton_image` | image | PNG-encoded skeleton on a black canvas (layout determined by `skeleton_format`). Present only when `return_skeleton_image` is enabled |
 
 Example (with `return_keypoints: false`, `return_skeleton_image: false`):

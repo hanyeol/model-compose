@@ -131,8 +131,7 @@ graph TD
 | `step_size` | float | `10.0` | CQT 帧之间的跳跃（毫秒）；仅 torch 后端，与 `streaming.chunk_size` 互斥 |
 | `streaming.chunk_size` | int | — | 每次推理步骤馈送给模型的固定块长度（音频样本） |
 | `streaming.max_batch_size` | int | `1` | 组件可同时服务的最大流数 |
-| `providers` | list | — | `onnxruntime` 执行提供者（例如 `[CUDAExecutionProvider, CPUExecutionProvider]`）；省略时从 `device` 自动选择 |
-| `device` | string | `auto` | 计算设备（`cpu`、`cuda`、`cuda:0`、`mps`） |
+| `device` | string | `auto` | 计算设备（`cpu`、`cuda`、`cuda:0`、`mps`）；ONNX 后端还接受 `tensorrt`、`rocm`、`dml`、`openvino` |
 | `precision` | string | — | 数值精度（`float32`、`float16`）；`float16` 加速 torch 后端的 CUDA 推理 |
 
 #### 输出格式
@@ -227,8 +226,6 @@ component:
     chunk_size: 1024
     max_batch_size: 2
   device: cuda:0
-  # 可选覆盖；省略时从 `device` 自动选择。
-  providers: [CUDAExecutionProvider, CPUExecutionProvider]
   action:
     audio: ${input.audio as audio}
     streaming: true

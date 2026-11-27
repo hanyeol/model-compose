@@ -100,7 +100,7 @@ Unlike cloud-based vision APIs, running BlazePose locally provides:
 - **Family**: `blazepose`
 - **Model**: `pose_landmarker_lite.task` (downloaded from Google's MediaPipe model store on first use)
 - **Features**:
-  - Automatic model downloading and caching under `~/.cache/models/mediapipe`
+  - Automatic model downloading and caching under `~/.cache/mindor/models/mediapipe`
   - 33-point body landmark output (nose, eyes, shoulders, elbows, wrists, hips, knees, ankles, etc.)
   - Real-world 3D coordinates (hip-centered, in meters)
   - Axis-aligned bounding box derived from visible keypoints

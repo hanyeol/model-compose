@@ -131,8 +131,7 @@ graph TD
 | `step_size` | float | `10.0` | CQT 프레임 간 홉(밀리초); torch 백엔드 전용, `streaming.chunk_size`와 상호 배타적 |
 | `streaming.chunk_size` | int | — | 추론 단계당 모델에 공급되는 고정 청크 길이(오디오 샘플 단위) |
 | `streaming.max_batch_size` | int | `1` | 컴포넌트가 동시에 처리할 수 있는 최대 스트림 수 |
-| `providers` | list | — | `onnxruntime` 실행 프로바이더 (예: `[CUDAExecutionProvider, CPUExecutionProvider]`); 생략 시 `device`에서 자동 선택 |
-| `device` | string | `auto` | 연산 장치 (`cpu`, `cuda`, `cuda:0`, `mps`) |
+| `device` | string | `auto` | 연산 장치 (`cpu`, `cuda`, `cuda:0`, `mps`); ONNX 백엔드는 `tensorrt`, `rocm`, `dml`, `openvino`도 허용 |
 | `precision` | string | — | 수치 정밀도 (`float32`, `float16`); `float16`은 torch 백엔드의 CUDA 추론 속도를 높임 |
 
 #### 출력 형식
@@ -227,8 +226,6 @@ component:
     chunk_size: 1024
     max_batch_size: 2
   device: cuda:0
-  # 선택적 재정의; 생략 시 `device`에서 자동 선택.
-  providers: [CUDAExecutionProvider, CPUExecutionProvider]
   action:
     audio: ${input.audio as audio}
     streaming: true

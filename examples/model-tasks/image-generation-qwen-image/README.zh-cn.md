@@ -23,7 +23,7 @@
 
 ### 为什么使用隔离运行时
 
-`QwenImage21Pipeline` 已合并到 `diffusers` main 分支，但**尚未包含在任何正式发布中**（截至 2026-09，最新版本为 v0.40.0）。image-generation 驱动会将 `diffusers @ git+https://github.com/huggingface/diffusers.git` 附加到此组件的 setup requirements，因此模型工作进程运行在专用的 `virtualenv` (`.venv/qwen-image`) 中，以避免该未发布构建覆盖控制器自身的 `diffusers` 安装，或与同一 compose 文件中其他扩散组件冲突。
+`QwenImage21Pipeline` 已合并到 `diffusers` main 分支，但**尚未包含在任何正式发布中**（截至 2026-09，最新版本为 v0.40.0）。image-generation 驱动会将 `diffusers@git+https://github.com/huggingface/diffusers.git` 附加到此组件的 setup requirements，因此模型工作进程运行在专用的 `virtualenv` (`.venv/qwen-image`) 中，以避免该未发布构建覆盖控制器自身的 `diffusers` 安装，或与同一 compose 文件中其他扩散组件冲突。
 
 ### 环境配置
 

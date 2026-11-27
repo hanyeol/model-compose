@@ -34,7 +34,7 @@ end-to-end 스트리밍이면 최대 `batch_size` 개의 프레임만 검출 파
   ```bash
   pip install insightface opencv-python onnxruntime
   ```
-- `antelopev2` InsightFace 모델 팩은 첫 실행 시 `~/.cache/models/insightface/`로 자동 다운로드됩니다.
+- `antelopev2` InsightFace 모델 팩은 첫 실행 시 `~/.cache/mindor/models/insightface/`로 자동 다운로드됩니다.
 
 ### 설정
 

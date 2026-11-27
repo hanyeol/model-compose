@@ -23,7 +23,7 @@ This workflow provides local text-to-image generation that:
 
 ### Why an Isolated Runtime
 
-`QwenImage21Pipeline` was merged into `diffusers` main but is **not yet in any tagged release** (as of 2026-09; latest is v0.40.0). The image-generation driver appends `diffusers @ git+https://github.com/huggingface/diffusers.git` to this component's setup requirements, so the model worker runs in a dedicated `virtualenv` (`.venv/qwen-image`) to keep that unreleased build from shadowing the controller's own `diffusers` install or clashing with other diffusion components in the same compose file.
+`QwenImage21Pipeline` was merged into `diffusers` main but is **not yet in any tagged release** (as of 2026-09; latest is v0.40.0). The image-generation driver appends `diffusers@git+https://github.com/huggingface/diffusers.git` to this component's setup requirements, so the model worker runs in a dedicated `virtualenv` (`.venv/qwen-image`) to keep that unreleased build from shadowing the controller's own `diffusers` install or clashing with other diffusion components in the same compose file.
 
 ### Environment Configuration
 

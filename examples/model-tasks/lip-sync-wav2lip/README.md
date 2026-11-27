@@ -41,7 +41,7 @@ Unlike cloud lip-sync services, running Wav2Lip locally provides:
    cd examples/model-tasks/lip-sync-wav2lip
    ```
 
-2. No additional environment configuration required — the Wav2Lip generator checkpoint (`Wav2Lip_GAN.pth`) is downloaded from the Easy-Wav2Lip release mirror and cached under `~/.cache/models/wav2lip/` on first run.
+2. No additional environment configuration required — the Wav2Lip generator checkpoint (`Wav2Lip_GAN.pth`) is downloaded from the Easy-Wav2Lip release mirror and cached under `~/.cache/mindor/models/wav2lip/` on first run.
 
 3. This example runs the model worker in a dedicated **virtualenv** (`.venv/wav2lip`) so Wav2Lip's old `librosa`/`numba` pins don't clash with the controller's own site-packages. The venv is created on first run and reused afterwards.
 
@@ -92,7 +92,7 @@ Unlike cloud lip-sync services, running Wav2Lip locally provides:
 | `driver` | Must be `custom`.                                                                                        | —                |
 | `family` | Lip-sync model family. `wav2lip`, `latentsync`, or `musetalk` (only `wav2lip` is implemented today).     | —                |
 | `preset` | Wav2Lip checkpoint variant: `wav2lip` (accuracy-tuned) or `wav2lip-gan` (sharper faces).                 | `wav2lip-gan`    |
-| `model`  | Checkpoint file. Leave unset to auto-fetch the preset's checkpoint into `~/.cache/models/wav2lip/`.      | (from preset)    |
+| `model`  | Checkpoint file. Leave unset to auto-fetch the preset's checkpoint into `~/.cache/mindor/models/wav2lip/`.      | (from preset)    |
 
 ### Action Fields
 

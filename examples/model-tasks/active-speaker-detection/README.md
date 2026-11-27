@@ -10,7 +10,7 @@ This workflow provides local active-speaker detection that:
 2. **Reuses Face Tracks**: Takes the detections produced by the paired `face-tracking` component instead of running its own face detector, so bounding boxes line up frame-for-frame with the shared frame sequence
 3. **Audio-Visual Scoring**: Pairs 112x112 grayscale face crops at 25 fps with 100 Hz MFCC features from the 16 kHz mono audio of the input video
 4. **Speaking Segments**: Converts the per-frame logit stream into merged `start_time / end_time / duration` segments per face track
-5. **Automatic Source Setup**: On first run, clones the upstream Light-ASD repository into the mindor install root (as `lightasd/`) and downloads the Light-ASD checkpoint under `~/.cache/models/light_asd/`
+5. **Automatic Source Setup**: On first run, clones the upstream Light-ASD repository into the mindor install root (as `lightasd/`) and downloads the Light-ASD checkpoint under `~/.cache/mindor/models/light_asd/`
 
 ## Preparation
 
@@ -25,7 +25,7 @@ This workflow provides local active-speaker detection that:
 
 ### Model Setup
 
-- The Light-ASD checkpoint is fetched automatically on first run from the upstream GitHub repository and cached under `~/.cache/models/light_asd/`.
+- The Light-ASD checkpoint is fetched automatically on first run from the upstream GitHub repository and cached under `~/.cache/mindor/models/light_asd/`.
 - The upstream Light-ASD source is cloned to a temporary cache (keyed by git revision) and installed as the `lightasd` package next to the running `mindor` package on first run. Subsequent runs reuse the installed copy.
 - The `antelopev2` face-tracking pack is **not** auto-downloaded — see the face-tracking example README for how to place it under `./models/antelopev2`.
 

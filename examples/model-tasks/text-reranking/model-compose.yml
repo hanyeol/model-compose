@@ -8,8 +8,8 @@ controller:
     port: 8081
 
 workflow:
-  title: Rerank Documents
-  description: Rerank a list of candidate documents against a query using a cross-encoder model.
+  title: Rerank Texts
+  description: Rerank a list of candidate texts against a query using a cross-encoder model.
   job:
     input: ${input}
     output:
@@ -23,5 +23,5 @@ component:
   max_concurrent_count: 1
   action:
     query: ${input.query}
-    documents: ${input.documents}
+    texts: ${input.texts}
     top_k: ${input.top_k as int | 5}

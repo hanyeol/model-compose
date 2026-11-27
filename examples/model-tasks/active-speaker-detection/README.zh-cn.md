@@ -10,7 +10,7 @@
 2. **复用人脸轨迹**：使用配对的 `face-tracking` 组件产出的检测结果，而不是运行自己的人脸检测器，使边界框与共享帧序列按帧对齐
 3. **音频-视觉评分**：将 25 fps 的 112x112 灰度人脸裁剪与 16 kHz 单声道音频提取的 100 Hz MFCC 特征配对
 4. **说话片段**：将逐帧的说话 logit 流合并为每条轨迹的 `start_time / end_time / duration` 区间
-5. **自动源码安装**：首次运行时将 Light-ASD 上游仓库克隆到 mindor 安装根目录（作为 `lightasd/`），并将 Light-ASD 检查点下载到 `~/.cache/models/light_asd/`
+5. **自动源码安装**：首次运行时将 Light-ASD 上游仓库克隆到 mindor 安装根目录（作为 `lightasd/`），并将 Light-ASD 检查点下载到 `~/.cache/mindor/models/light_asd/`
 
 ## 准备工作
 
@@ -25,7 +25,7 @@
 
 ### 模型设置
 
-- Light-ASD 检查点在首次运行时从上游 GitHub 仓库自动获取，并缓存到 `~/.cache/models/light_asd/`。
+- Light-ASD 检查点在首次运行时从上游 GitHub 仓库自动获取，并缓存到 `~/.cache/mindor/models/light_asd/`。
 - Light-ASD 上游源码会克隆到临时缓存（按 git 版本号作为 key），并在首次运行时安装为运行中 `mindor` 包旁边的 `lightasd` 包。后续运行复用已安装的副本。
 - `antelopev2` 人脸追踪包**不会**自动下载——如何将其放置到 `./models/antelopev2` 下请参见 face-tracking 示例的 README。
 

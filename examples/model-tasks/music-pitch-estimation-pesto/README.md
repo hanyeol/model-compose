@@ -131,8 +131,7 @@ Component-level fields (loaded once, not per request):
 | `step_size` | float | `10.0` | Hop between CQT frames in milliseconds; torch backend only, mutually exclusive with `streaming.chunk_size` |
 | `streaming.chunk_size` | int | — | Fixed chunk length in audio samples fed to the model per inference step |
 | `streaming.max_batch_size` | int | `1` | Maximum number of concurrent streams the component can serve |
-| `providers` | list | — | `onnxruntime` execution providers (e.g. `[CUDAExecutionProvider, CPUExecutionProvider]`); auto-selected from `device` when omitted |
-| `device` | string | `auto` | Compute device (`cpu`, `cuda`, `cuda:0`, `mps`) |
+| `device` | string | `auto` | Compute device (`cpu`, `cuda`, `cuda:0`, `mps`); the ONNX backend also accepts `tensorrt`, `rocm`, `dml`, `openvino` |
 | `precision` | string | — | Numeric precision (`float32`, `float16`); `float16` speeds up CUDA inference on the torch backend |
 
 #### Output Format
@@ -227,8 +226,6 @@ component:
     chunk_size: 1024
     max_batch_size: 2
   device: cuda:0
-  # Optional override; auto-selected from `device` when omitted.
-  providers: [CUDAExecutionProvider, CPUExecutionProvider]
   action:
     audio: ${input.audio as audio}
     streaming: true

@@ -90,7 +90,7 @@
 - **패밀리**: `blazepose`
 - **모델**: `pose_landmarker_lite.task` (첫 사용 시 Google MediaPipe 모델 저장소에서 다운로드)
 - **기능**:
-  - `~/.cache/models/mediapipe` 아래로 모델 자동 다운로드 및 캐싱
+  - `~/.cache/mindor/models/mediapipe` 아래로 모델 자동 다운로드 및 캐싱
   - 33개 신체 랜드마크 출력 (코, 눈, 어깨, 팔꿈치, 손목, 엉덩이, 무릎, 발목 등)
   - 실제 3D 좌표 (엉덩이 중심, 미터 단위)
   - 자세별 PNG 인코딩 세그멘테이션 마스크 (선택)

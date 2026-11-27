@@ -23,7 +23,7 @@
 
 ### 격리된 런타임을 사용하는 이유
 
-`QwenImage21Pipeline`은 `diffusers` main 브랜치에 병합되었지만 **아직 정식 릴리스에 포함되지 않았습니다** (2026-09 기준 최신은 v0.40.0). image-generation 드라이버가 이 컴포넌트의 setup requirements에 `diffusers @ git+https://github.com/huggingface/diffusers.git`을 추가하므로, 모델 워커는 전용 `virtualenv` (`.venv/qwen-image`)에서 실행되어 이 미공개 빌드가 컨트롤러 자신의 `diffusers` 설치나 동일 compose 파일 안의 다른 diffusion 컴포넌트와 충돌하지 않도록 합니다.
+`QwenImage21Pipeline`은 `diffusers` main 브랜치에 병합되었지만 **아직 정식 릴리스에 포함되지 않았습니다** (2026-09 기준 최신은 v0.40.0). image-generation 드라이버가 이 컴포넌트의 setup requirements에 `diffusers@git+https://github.com/huggingface/diffusers.git`을 추가하므로, 모델 워커는 전용 `virtualenv` (`.venv/qwen-image`)에서 실행되어 이 미공개 빌드가 컨트롤러 자신의 `diffusers` 설치나 동일 compose 파일 안의 다른 diffusion 컴포넌트와 충돌하지 않도록 합니다.
 
 ### 환경 구성
 

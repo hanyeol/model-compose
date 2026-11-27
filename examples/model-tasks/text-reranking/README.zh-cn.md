@@ -1,14 +1,14 @@
 # 文本重排序模型任务示例
 
-本示例演示如何使用 model-compose 的内置 `text-reranking` 任务与 HuggingFace transformers，通过本地交叉编码器模型对候选文档列表相对于查询进行重排序，提供适用于 RAG 管道的离线检索精化功能。
+本示例演示如何使用 model-compose 的内置 `text-reranking` 任务与 HuggingFace transformers，通过本地交叉编码器模型对候选文本列表相对于查询进行重排序，提供适用于 RAG 管道的离线检索精化功能。
 
 ## 概述
 
 此工作流提供本地文本重排序功能：
 
 1. **本地重排序模型**：在本地运行 BAAI 的 `bge-reranker-v2-m3` 交叉编码器
-2. **查询-文档评分**：与双编码器不同，对每个（查询、文档）对进行联合评分
-3. **Top-K 选择**：返回按分数排序的最相关的 Top-K 文档
+2. **查询-文本评分**：与双编码器不同，对每个（查询、文本）对进行联合评分
+3. **Top-K 选择**：返回按分数排序的最相关的 Top-K 索引
 4. **多语言**：支持多种语言，包括英语、中文、韩语和日语
 5. **无需外部 API**：完全离线重排序，非常适合私有 RAG 管道
 6. **自动模型管理**：首次使用时自动下载和缓存模型
@@ -23,21 +23,24 @@
 
 ### 为什么需要重排序
 
-第一阶段检索器（BM25 或双编码器嵌入）快速但粗糙。交叉编码器重排序器将查询和每个候选文档一起读取，生成更精确的相关性分数。典型用法：
+第一阶段检索器（BM25 或双编码器嵌入）快速但粗糙。交叉编码器重排序器将查询和每个候选文本一起读取，生成更精确的相关性分数。典型用法：
 
 1. 使用快速双编码器 / BM25 检索前 100 个候选
 2. 用交叉编码器对这 100 个进行重排序，得到真正的前 5 或前 10
 3. 将重排序后的上下文输入 LLM
 
 **本地重排序的优势：**
-- **隐私**：查询和文档永不离开您的基础设施
+- **隐私**：查询和文本永不离开您的基础设施
 - **成本**：初始模型下载后无按请求定价
 - **延迟**：无网络往返；仅本地 GPU/CPU 推理
-- **确定性**：相同的查询 + 文档始终产生相同的分数
+- **确定性**：相同的查询 + 文本始终产生相同的分数
 
 **权衡：**
 - **计算量**：交叉编码器每对比双编码器慢 — 仅重排序前 N 个，而不是整个语料库
 - **硬件**：对于大 N 或低延迟场景，推荐使用 GPU
+
+**保留原始数据：**
+输出仅返回 `index` 和 `score`，不包含原始文本或元数据。如果需要在重排序过程中传递结构化文档，请在输入中提取文本（`texts: ${input.docs[*].text}`），并在之后通过 `index` 重新组合。
 
 ### 环境配置
 
@@ -64,7 +67,7 @@
      -d '{
        "input": {
          "query": "What is the capital of France?",
-         "documents": [
+         "texts": [
            "Paris is the capital and most populous city of France.",
            "Berlin is the capital of Germany.",
            "The Eiffel Tower is located in Paris.",
@@ -77,14 +80,14 @@
 
    **使用 Web UI：**
    - 打开 Web UI：http://localhost:8081
-   - 输入查询、候选文档和 `top_k`
+   - 输入查询、候选文本和 `top_k`
    - 点击"Run Workflow"按钮
 
    **使用 CLI：**
    ```bash
    model-compose run --input '{
      "query": "What is the capital of France?",
-     "documents": [
+     "texts": [
        "Paris is the capital and most populous city of France.",
        "Berlin is the capital of Germany.",
        "The Eiffel Tower is located in Paris.",
@@ -101,7 +104,7 @@
 - **驱动**：`huggingface`
 - **模型**：`BAAI/bge-reranker-v2-m3`
 - **功能**：
-  - （查询、文档）对的交叉编码器联合评分
+  - （查询、文本）对的交叉编码器联合评分
   - 多语言支持（100+ 种语言）
   - 按分数降序进行 Top-K 过滤
   - 顺序执行（`max_concurrent_count: 1`）以限制 GPU 内存
@@ -116,9 +119,9 @@
 
 ## 工作流详情
 
-### "Rerank Documents" 工作流（默认）
+### "Rerank Texts" 工作流（默认）
 
-**描述**：使用交叉编码器模型对候选文档列表相对于查询进行重排序。
+**描述**：使用交叉编码器模型对候选文本列表相对于查询进行重排序。
 
 #### 作业流程
 
@@ -134,7 +137,7 @@ graph TD
 
     %% Job to component connections
     J1 -.-> C1
-    C1 -.-> |ranked documents| J1
+    C1 -.-> |ranked results| J1
 
     %% Input/Output
     Input((Input)) --> J1
@@ -145,17 +148,17 @@ graph TD
 
 | 参数 | 类型 | 必需 | 默认值 | 描述 |
 |-----|------|------|--------|------|
-| `query` | text | 是 | - | 用于文档评分的查询文本 |
-| `documents` | text[] | 是 | - | 要重排序的候选文档列表 |
-| `top_k` | integer | 否 | 5 | 要返回的最高得分文档数量 |
+| `query` | text | 是 | - | 用于候选文本评分的查询文本 |
+| `texts` | text[] | 是 | - | 要重排序的候选文本列表 |
+| `top_k` | integer | 否 | 5 | 要返回的最高得分结果数量 |
 
 #### 输出格式
 
 | 字段 | 类型 | 描述 |
 |-----|------|------|
-| `ranked` | object[] | 按相关性分数（降序）排序的 Top-K 文档 |
+| `ranked` | object[] | 按相关性分数（降序）排序的 Top-K 结果 |
 
-`ranked` 中的每个元素通常包含文档文本、其原始索引和相关性分数。
+`ranked` 中的每个元素为 `{ "index": int, "score": float }`，其中 `index` 指向输入 `texts` 数组中的位置。
 
 ## 系统要求
 
@@ -168,8 +171,8 @@ graph TD
 
 ### 性能说明
 - 首次运行下载模型（约 2.3GB）
-- CPU 推理随文档数量线性扩展
-- GPU 推理可高效批处理所有（查询、文档）对
+- CPU 推理随文本数量线性扩展
+- GPU 推理按 `batch_size`（默认 32）对（查询、文本）对进行批处理，以限制注意力内存
 - 8192 词元上下文让您可以无需预先分块即可重排序长段落
 
 ## 自定义
@@ -206,14 +209,14 @@ workflow:
       component: text-reranker
       input:
         query: ${input.query}
-        documents: ${retrieve.documents}
+        texts: ${retrieve.documents[*].text}
         top_k: 10
     - id: generate
       component: llm
       input:
         prompt: |
           Context:
-          ${rerank.ranked}
+          ${retrieve.documents[rerank.ranked[*].index].text}
 
           Question: ${input.query}
 ```
@@ -225,7 +228,7 @@ workflow:
 ```bash
 model-compose run --input '{
   "query": "...",
-  "documents": ["...", "..."],
+  "texts": ["...", "..."],
   "top_k": 10
 }'
 ```
@@ -234,15 +237,15 @@ model-compose run --input '{
 
 ### 常见问题
 
-1. **内存不足**：使用 `bge-reranker-base`，减少每次调用的文档数量，或降低上下文长度
+1. **内存不足**：降低 `batch_size`、使用 `bge-reranker-base`，或通过 `max_input_length` 截断较长的文本
 2. **模型下载失败**：检查互联网连接和磁盘空间
 3. **推理缓慢**：使用 `device: cuda:0` 启用 GPU；在 GPU 上批量重排序效率高得多
-4. **文档太长**：`bge-reranker-v2-m3` 每对（查询 + 文档）最多接受 8192 词元；截断更长的输入
+4. **文本太长**：`bge-reranker-v2-m3` 每对（查询 + 文本）最多接受 8192 词元；截断更长的输入
 
 ### 性能优化
 
 - **GPU**：设置 `device: cuda:0`（Apple Silicon 上使用 `mps`）以显著加快推理
-- **批量大小**：huggingface 驱动自动批处理；将文档保持在一次调用中，而不是 N 次调用
+- **批量大小**：将 `batch_size` 调整为适合 VRAM 的最大值；较小的值可降低峰值内存，但会增加延迟
 - **模型大小**：对延迟敏感的用例使用 `bge-reranker-base`，对最佳质量使用 `v2-m3`
 - **预过滤**：仅重排序检索器的前 100 个，而不是整个语料库
 
@@ -250,7 +253,7 @@ model-compose run --input '{
 
 | 功能 | 交叉编码器重排序器 | 双编码器嵌入 |
 |-----|-----------------|-----------|
-| 评分 | 联合（查询 + 文档） | 独立（点积） |
+| 评分 | 联合（查询 + 文本） | 独立（点积） |
 | 精度 | 较高 | 较低 |
 | 每对延迟 | 较高 | 非常低 |
 | 可扩展到语料库大小 | 否（仅重排序前 N 个） | 是（近似最近邻） |

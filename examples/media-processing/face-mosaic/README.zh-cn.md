@@ -34,7 +34,7 @@ end-to-end 流式则最多让 `batch_size` 帧同时通过检测流水线，enco
   ```bash
   pip install insightface opencv-python onnxruntime
   ```
-- `antelopev2` InsightFace 模型包在首次运行时自动下载到 `~/.cache/models/insightface/`。
+- `antelopev2` InsightFace 模型包在首次运行时自动下载到 `~/.cache/mindor/models/insightface/`。
 
 ### 设置
 

@@ -45,7 +45,6 @@ workflow:
         merge_gap: ${input.merge_gap | 0.5}
         tracker: ${input.tracker | bytetrack}
         return_keypoints: ${input.return_keypoints as boolean | true}
-        return_openpose_keypoints: ${input.return_openpose_keypoints as boolean | false}
         return_skeleton_image: ${input.return_skeleton_image as boolean | false}
         skeleton_format: ${input.skeleton_format | natural}
       output:
@@ -86,7 +85,6 @@ components:
       frame_rate: ${input.frame_rate}
       time_offset: 0.0
       return_keypoints: ${input.return_keypoints}
-      return_openpose_keypoints: ${input.return_openpose_keypoints}
       return_skeleton_image: ${input.return_skeleton_image}
       skeleton_format: ${input.skeleton_format}
       max_detection_count_per_frame: 0

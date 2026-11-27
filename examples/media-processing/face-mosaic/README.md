@@ -37,7 +37,7 @@ Face-tracking is used purely as a per-frame detector here — the tracker's iden
   ```bash
   pip install insightface opencv-python onnxruntime
   ```
-- The `antelopev2` InsightFace model pack is downloaded automatically on first run to `~/.cache/models/insightface/`.
+- The `antelopev2` InsightFace model pack is downloaded automatically on first run to `~/.cache/mindor/models/insightface/`.
 
 ### Setup
 

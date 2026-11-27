@@ -10,7 +10,7 @@
 2. **얼굴 트랙 재사용**: 자체 얼굴 검출기를 돌리지 않고 짝지어진 `face-tracking` 컴포넌트가 생산한 검출 결과를 사용하여, 공유 프레임 시퀀스에 대해 바운딩 박스가 프레임 단위로 정확히 정렬되도록 보장
 3. **오디오-비주얼 점수화**: 25 fps의 112x112 그레이스케일 얼굴 크롭과 16 kHz 모노 오디오에서 추출한 100 Hz MFCC 특징을 짝지어 평가
 4. **발화 구간**: 프레임별 로짓 스트림을 트랙별 `start_time / end_time / duration` 구간으로 병합
-5. **자동 소스 설치**: 첫 실행 시 Light-ASD 상위 저장소를 mindor 설치 루트에 `lightasd/`로 클론하고, Light-ASD 체크포인트를 `~/.cache/models/light_asd/`에 다운로드
+5. **자동 소스 설치**: 첫 실행 시 Light-ASD 상위 저장소를 mindor 설치 루트에 `lightasd/`로 클론하고, Light-ASD 체크포인트를 `~/.cache/mindor/models/light_asd/`에 다운로드
 
 ## 준비사항
 
@@ -25,7 +25,7 @@
 
 ### 모델 설정
 
-- Light-ASD 체크포인트는 첫 실행 시 상위 GitHub 저장소에서 자동으로 가져와 `~/.cache/models/light_asd/`에 캐시됩니다.
+- Light-ASD 체크포인트는 첫 실행 시 상위 GitHub 저장소에서 자동으로 가져와 `~/.cache/mindor/models/light_asd/`에 캐시됩니다.
 - Light-ASD 상위 소스는 임시 캐시(git 리비전으로 키됨)에 클론되어 첫 실행 시 실행 중인 `mindor` 패키지 옆에 `lightasd` 패키지로 설치됩니다. 이후 실행은 설치된 사본을 재사용합니다.
 - `antelopev2` 얼굴 추적 팩은 **자동 다운로드되지 않습니다** — `./models/antelopev2` 아래에 배치하는 방법은 face-tracking 예제 README를 참고하세요.
 

@@ -90,7 +90,7 @@
 - **系列**：`blazepose`
 - **模型**：`pose_landmarker_lite.task`（首次使用时从 Google MediaPipe 模型库下载）
 - **功能**：
-  - 自动下载并缓存到 `~/.cache/models/mediapipe`
+  - 自动下载并缓存到 `~/.cache/mindor/models/mediapipe`
   - 33 点身体地标输出（鼻子、眼睛、肩膀、肘部、手腕、髋部、膝盖、脚踝等）
   - 真实 3D 坐标（以髋部为中心，以米为单位）
   - 每个姿态的 PNG 编码分割掩码（可选）

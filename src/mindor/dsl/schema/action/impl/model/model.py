@@ -42,6 +42,7 @@ ModelActionConfig = Union[
     ActiveSpeakerDetectionModelActionConfig,
     TextToSpeechModelActionConfig,
     SpeechToTextModelActionConfig,
+    AudioSourceSeparationModelActionConfig,
     AudioTextAlignmentModelActionConfig,
     VoiceActivityDetectionModelActionConfig,
     SpeakerDiarizationModelActionConfig,

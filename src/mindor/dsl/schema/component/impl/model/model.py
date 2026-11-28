@@ -47,6 +47,7 @@ ModelComponentConfig = Annotated[
         ActiveSpeakerDetectionModelComponentConfig,
         TextToSpeechModelComponentConfig,
         SpeechToTextModelComponentConfig,
+        AudioSourceSeparationModelComponentConfig,
         AudioTextAlignmentModelComponentConfig,
         VoiceActivityDetectionModelComponentConfig,
         SpeakerDiarizationModelComponentConfig,

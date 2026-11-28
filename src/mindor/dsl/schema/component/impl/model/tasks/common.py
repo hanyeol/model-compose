@@ -50,6 +50,7 @@ class ModelTaskType(str, Enum):
     HUMAN_MESH_RECOVERY         = "human-mesh-recovery"
     TEXT_TO_SPEECH              = "text-to-speech"
     SPEECH_TO_TEXT              = "speech-to-text"
+    AUDIO_SOURCE_SEPARATION     = "audio-source-separation"
     AUDIO_TEXT_ALIGNMENT        = "audio-text-alignment"
     VOICE_ACTIVITY_DETECTION    = "voice-activity-detection"
     SPEAKER_DIARIZATION         = "speaker-diarization"

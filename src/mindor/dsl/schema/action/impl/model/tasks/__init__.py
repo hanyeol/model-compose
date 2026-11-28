@@ -41,6 +41,7 @@ from .face_emotion_classification import *
 from .active_speaker_detection import *
 from .text_to_speech import *
 from .speech_to_text import *
+from .audio_source_separation import *
 from .audio_text_alignment import *
 from .voice_activity_detection import *
 from .speaker_diarization import *

@@ -1,0 +1,51 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Audio Source Separation with SAM-Audio
+  description: Isolate any sound from an audio mixture using a natural-language description.
+  jobs:
+    - id: convert
+      component: audio-converter
+      input: ${input}
+      output: ${output as audio/wav}
+
+    - id: separate
+      component: separator
+      input:
+        audio: ${jobs.convert.output}
+        prompt: ${input.prompt | thunder}
+      output: ${output.target as audio/wav}
+      depends_on: [ convert ]
+
+components:
+  - id: audio-converter
+    type: audio-converter
+    action:
+      audio: ${input.audio as audio}
+      format: wav
+
+  - id: separator
+    type: model
+    task: audio-source-separation
+    driver: custom
+    family: sam-audio
+    # Request access on HuggingFace first: https://huggingface.co/facebook/sam-audio-large
+    model: facebook/sam-audio-large
+    device: cuda   # SAM-Audio requires a CUDA GPU in practice
+    preload: false  # load on first request; set true for warm-start
+    max_concurrent_count: 1
+    action:
+      audio: ${input.audio as audio}
+      prompt: ${input.prompt}
+      params:
+        # `predict_spans` + higher `reranking_candidates` improves quality at
+        # the cost of latency and VRAM. Keep both low for interactive use.
+        predict_spans: ${input.predict_spans | false}
+        reranking_candidates: ${input.reranking_candidates | 1}
